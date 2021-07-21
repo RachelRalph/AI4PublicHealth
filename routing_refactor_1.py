@@ -1,0 +1,240 @@
+import os
+import geopandas as gpd
+import pandas as pd
+import numpy as np
+import time
+
+# Get script and dataset file paths.
+SCRIPT_PATH = os.path.dirname(__file__)
+DATA_PATH = os.path.join(SCRIPT_PATH, "DummyData.shp")
+# Read the .shp file via geopanadas and store as a pandas dataframe.
+ROUTES = gpd.read_file(DATA_PATH)
+ROUTE_DATA = pd.DataFrame(ROUTES)
+GRAPH = False
+
+
+def preprocessing(unprocessed_raw_data):
+    """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
+    version of the original data from the .shp file. """
+
+    # Drop one of the two columns containing data id numbers, and drop the rows with any column containing NaN data.
+    processed_raw_data = unprocessed_raw_data.drop("id", axis=1).dropna()
+    # Reset the modified data frame index number
+    processed_raw_data = processed_raw_data.reset_index()
+
+    # Create a secondary pandas data frame that contains the index of nodes and the start/end longitude and latitude.
+    processed_data = []
+
+    # TODO: Maybe there's a more efficient way to do this than to loop through the entire unprocessed data set
+    for rows in range(len(processed_raw_data.index)):
+        time = processed_raw_data.iloc[rows, 1]
+        coordinates = list(processed_raw_data.iloc[rows, 2].coords)  # TODO: Ask about the .coords method
+        start_longitude = round(coordinates[0][0], 3)
+        start_latitude = round(coordinates[0][1], 3)
+
+        end_longitude = round(coordinates[-1][0], 3)
+        end_latitude = round(coordinates[-1][1], 3)
+        processed_data.append([time, [start_longitude, start_latitude], [end_longitude, end_latitude]])
+
+    processed_data = pd.DataFrame(processed_data)
+    processed_data = processed_data.rename(columns={0: "Time", 1: "Starting coordinates", 2: "Finishing coordinates"})
+
+    return processed_data
+
+# TODO: Comment through the classes, I don't have the brains for this, so Rachel pop off bro.
+class Node:
+    def __init__(self, lat, longt, id):
+        self.lat = lat
+        self.longt = longt
+        self.connections = {}
+        self.nodes = []
+        self.times = []
+        self.id = id
+        self.f = None
+        self.g = None
+        self.h = None
+
+    def add_connection(self, node, time):
+        for key in self.connections:
+            if key == node:
+                return -1
+        self.connections[node] = time
+        self.nodes.append(node)
+        self.times.append(time)
+        return 0
+
+class Graph:
+    def __init__(self, dataframe):
+        self.nodes = []
+        for rows in range(len(dataframe)):
+            time = dataframe.loc[rows, "Time"]
+            startCoor = dataframe.loc[rows, "Starting coordinates"]
+            endCoor = dataframe.loc[rows, "Finishing coordinates"]
+            startNode = None
+            endNode = None
+            for node in self.nodes:
+                if (node.lat - startCoor[0] < 0.002 and startCoor[0] - node.lat < 0.002) and (
+                        node.longt - startCoor[1] < 0.002 and startCoor[1] - node.longt < 0.002):
+                    startNode = node
+                if (node.lat - endCoor[0] < 0.002 and endCoor[0] - node.lat < 0.002) and (
+                        node.longt - endCoor[1] < 0.002 and endCoor[1] - node.longt < 0.002):
+                    endNode = node
+
+            if startNode is None:
+                startNode = Node(startCoor[0], startCoor[1], len(self.nodes))
+                self.nodes.append(startNode)
+
+            if endNode is None:
+                endNode = Node(endCoor[0], startCoor[1], len(self.nodes))
+                self.nodes.append(endNode)
+
+            startNode.add_connection(endNode, time)
+            endNode.add_connection(startNode, time)
+
+def heuristic(start_node, end_node):
+    """This function returns the shortest euclidean distance between two nodes. NOTE: This currently only works for
+    2D data."""
+
+    # TODO: Update the current function to incorporate a third dimension (elevation) when attempting to find the
+    #  shortest euclidean distance between two nodes.
+
+    start_node_x = start_node.lat
+    start_node_y = start_node.longt
+
+    end_node_x = end_node.lat
+    end_node_y = end_node.longt
+
+    diff_x = (start_node_x - end_node_x) ** 2
+    diff_y = (start_node_y - end_node_y) ** 2
+
+    shortest_possible__distance = np.sqrt(diff_x + diff_y)
+
+    return shortest_possible__distance
+
+def node_to_node_search(start_node, goal):
+    openList = [start_node]
+    start_node.f = 0
+    start_node.g = 0
+    closedList = []
+    while len(openList) != 0:
+        currNode = openList[0]
+        for i in range(len(openList)):
+            if openList[i].f < currNode.f:
+                currNode = openList[i]
+        openList.remove(currNode)
+        closedList.append(currNode)
+        if currNode == goal:
+            return closedList
+
+        for child in currNode.connections:
+            if child in closedList:
+                continue
+
+            child.g = currNode.connections[child] + currNode.g
+            child.h = heuristic(child, goal) * 4146.282847732093
+            child.f = child.g + child.h
+
+            openList.append(child)
+
+def search_round_routes(start_node):
+    best_path = 1000
+    nodes_been = [start_node]
+    nodes_to_go = [node for node in GRAPH.nodes]
+    indicies = []
+
+    index = 0
+    curr_time = 0
+
+    curr_node = start_node
+
+    while len(nodes_been) != len(GRAPH.nodes):
+        indicies.append(index)
+        hPath = search_next_node(nodes_to_go, curr_time, nodes_been, curr_node, index)
+        if hPath == 0 or hPath == - 1:
+            nodes_to_go.append(curr_node)
+            indicies.remove(index)
+            index = indicies[-1] + 1
+
+
+        elif hPath + curr_time > best_path:
+            print("best_path is better than all other paths!")
+            nodes_been.remove(curr_node)
+            nodes_to_go.append(curr_node)
+            indicies.remove(index)
+            index = indicies[-1] + 1
+
+        else:
+            node = curr_node.nodes[index]
+            nodes_been.append(curr_node)
+            if node in nodes_to_go:
+                nodes_to_go.remove(node)
+            curr_node = node
+            index = 0
+
+    return nodes_been
+
+def search_next_node(nodes_to_go, curr_time, nodes_been, curr_node, index):
+    if len(nodes_to_go) == 0:
+        return 0
+    elif len(curr_node.connections) == 0 or len(curr_node.connections) <= index:
+        return -1
+    return h(curr_node.nodes[index], curr_node) * 4146.282847732093 + curr_time
+
+def testing(connection_testing=list, time_dist=list):
+    """Function to contain all of the testing functions. This is just to reduce space."""
+
+    def connections():
+        """Lists all of the nodes and the bidirectional connections between them and other nodes."""
+
+        # From the connection_testing parameter, retrieve the graph data.
+        graph = connection_testing[1]
+        print("LISTING CONNECTIONS PRESENT IN THE DATA...\n")
+
+        # Iterate through all of the nodes, and for every node, iterate through the connections. For each of the
+        # node-node connections, print the id, long, lati, and time for the child node being connected to from the
+        # parent node.
+        for node in graph.nodes:
+            print(node.id, node.lat, node.longt)
+            for connect in node.connections:
+                print("    Connection to Node %s: " % connect.id, connect.lat, connect.longt, node.connections[connect])
+
+    def time_per_long_lat():
+        """Based on the data, determine the amount of time needed to move one unit of latitude/longitude."""
+
+        # From the connection_testing parameter, retrieve the graph data.
+        graph = connection_testing[1]
+
+        dist = 0
+        count = 0
+        time = 0
+        # Iterate through all of the nodes, and for every node, iterate through the connections. For each of the
+        # start-end node pairs, summate all of the collective distances and times.
+        for node in graph.nodes:
+            for connection in node.connections:
+                dist += heuristic(node, connection)
+                time += node.connections[connection]
+                count += 1
+
+        print("\nAverage Time Per Distance: ", time / dist)
+
+    # Check which testing functions that we should be running.
+    if connection_testing[0]:
+        connections()
+    if time_dist[0]:
+        time_per_long_lat()
+
+def main():
+    global GRAPH
+
+    start_time = time.time()
+    processed_data = preprocessing(ROUTE_DATA)
+    GRAPH = Graph(processed_data)
+
+    testing(connection_testing=[False, GRAPH],
+            time_dist=[False, GRAPH])
+
+    print("\nMinutes since execution:", (time.time() - start_time) / 60)
+
+
+if __name__ == "__main__":
+    main()
