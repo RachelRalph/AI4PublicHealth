@@ -41,6 +41,7 @@ def preprocessing(unprocessed_raw_data):
 
     return processed_data
 
+
 # TODO: Comment through the classes, I don't have the brains for this, so Rachel pop off bro.
 class Node:
     def __init__(self, lat, longt, id):
@@ -62,6 +63,7 @@ class Node:
         self.nodes.append(node)
         self.times.append(time)
         return 0
+
 
 class Graph:
     def __init__(self, dataframe):
@@ -91,6 +93,7 @@ class Graph:
             startNode.add_connection(endNode, time)
             endNode.add_connection(startNode, time)
 
+
 def heuristic(start_node, end_node):
     """This function returns the shortest euclidean distance between two nodes. NOTE: This currently only works for
     2D data."""
@@ -107,37 +110,73 @@ def heuristic(start_node, end_node):
     diff_x = (start_node_x - end_node_x) ** 2
     diff_y = (start_node_y - end_node_y) ** 2
 
-    shortest_possible__distance = np.sqrt(diff_x + diff_y)
+    shortest_possible_distance = np.sqrt(diff_x + diff_y)
 
-    return shortest_possible__distance
+    return shortest_possible_distance
 
+
+# TODO: FIX THE NEXT THREE FUNCTIONS
 def node_to_node_search(start_node, goal):
-    openList = [start_node]
+    from operator import attrgetter
+
+    checking_list = [start_node]
+    checked_list = []
+    final_route = []
+
     start_node.f = 0
     start_node.g = 0
-    closedList = []
-    while len(openList) != 0:
-        currNode = openList[0]
-        for i in range(len(openList)):
-            if openList[i].f < currNode.f:
-                currNode = openList[i]
-        openList.remove(currNode)
-        closedList.append(currNode)
-        if currNode == goal:
-            return closedList
+    tree_dict = {start_node: 0}
 
-        for child in currNode.connections:
-            if child in closedList:
+    level = 0
+    while len(checking_list) != 0:
+        current_node = checking_list[0]
+
+        # Set the new node to be the previous sub_node with the lowest f(x).
+        if current_node != start_node:
+            current_node = min(checking_list, key=attrgetter('f'))
+
+        #
+        level = tree_dict[current_node]
+        checking_list.remove(current_node)
+
+        if level == len(final_route):
+            final_route.append(current_node)
+        else:
+            final_route[level] = current_node
+
+        # Add the current node to the checked list
+        checked_list.append(current_node)
+
+        # Check if the goal node has been reached
+        if current_node == goal:
+            return final_route
+
+        # For the current_node, go through all of its connections, and determine their f(x) as a sum of their h(x)
+        # and g(x).
+        for sub_node in current_node.connections:
+            if sub_node in checked_list:
                 continue
+            found = False
+            for key, value in tree_dict.items():
+                if key == sub_node:
+                    found = True
+            if not found:
+                tree_dict[sub_node] = level + 1
 
-            child.g = currNode.connections[child] + currNode.g
-            child.h = heuristic(child, goal) * 4146.282847732093
-            child.f = child.g + child.h
+            sub_node.g = current_node.connections[sub_node] + current_node.g
+            sub_node.h = heuristic(sub_node, goal) * 4146.282847732093
+            sub_node.f = sub_node.g + sub_node.h
 
-            openList.append(child)
+            checking_list.append(sub_node)
+
+        print("Current Node:", current_node.id, current_node.f)
+        for sub_node in checking_list:
+            print("    Sub-Nodes Data:", sub_node.id, sub_node.f, len(checking_list))
+        print("\n")
+
 
 def search_round_routes(start_node):
-    best_path = 1000
+    best_path = 10000
     nodes_been = [start_node]
     nodes_to_go = [node for node in GRAPH.nodes]
     indicies = []
@@ -173,12 +212,14 @@ def search_round_routes(start_node):
 
     return nodes_been
 
+
 def search_next_node(nodes_to_go, curr_time, nodes_been, curr_node, index):
     if len(nodes_to_go) == 0:
         return 0
     elif len(curr_node.connections) == 0 or len(curr_node.connections) <= index:
         return -1
-    return h(curr_node.nodes[index], curr_node) * 4146.282847732093 + curr_time
+    return heuristic(curr_node.nodes[index], curr_node) * 4146.282847732093 + curr_time
+
 
 def testing(connection_testing=list, time_dist=list):
     """Function to contain all of the testing functions. This is just to reduce space."""
@@ -223,12 +264,16 @@ def testing(connection_testing=list, time_dist=list):
     if time_dist[0]:
         time_per_long_lat()
 
+
 def main():
     global GRAPH
 
     start_time = time.time()
     processed_data = preprocessing(ROUTE_DATA)
     GRAPH = Graph(processed_data)
+
+    direct_route = node_to_node_search(GRAPH.nodes[5], GRAPH.nodes[1])
+    hit_all_route = search_round_routes(GRAPH.nodes())
 
     testing(connection_testing=[False, GRAPH],
             time_dist=[False, GRAPH])
