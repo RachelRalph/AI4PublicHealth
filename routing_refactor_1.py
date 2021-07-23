@@ -27,14 +27,14 @@ def preprocessing(unprocessed_raw_data):
 
     # TODO: Maybe there's a more efficient way to do this than to loop through the entire unprocessed data set
     for rows in range(len(processed_raw_data.index)):
-        time = processed_raw_data.iloc[rows, 1]
+        route_time = processed_raw_data.iloc[rows, 1]
         coordinates = list(processed_raw_data.iloc[rows, 2].coords)  # TODO: Ask about the .coords method
         start_longitude = round(coordinates[0][0], 3)
         start_latitude = round(coordinates[0][1], 3)
 
         end_longitude = round(coordinates[-1][0], 3)
         end_latitude = round(coordinates[-1][1], 3)
-        processed_data.append([time, [start_longitude, start_latitude], [end_longitude, end_latitude]])
+        processed_data.append([route_time, [start_longitude, start_latitude], [end_longitude, end_latitude]])
 
     processed_data = pd.DataFrame(processed_data)
     processed_data = processed_data.rename(columns={0: "Time", 1: "Starting coordinates", 2: "Finishing coordinates"})
@@ -61,13 +61,13 @@ class Node:
         self.h = None
         self.importance = importance
 
-    def add_connection(self, node, time):
+    def add_connection(self, node, route_time):
         for key in self.connections:
             if key == node:
                 return -1
-        self.connections[node] = time
+        self.connections[node] = route_time
         self.nodes.append(node)
-        self.times.append(time)
+        self.times.append(route_time)
         return 0
 
 
@@ -75,7 +75,7 @@ class Graph:
     def __init__(self, dataframe):
         self.nodes = []
         for rows in range(len(dataframe)):
-            time = dataframe.loc[rows, "Time"]
+            route_time = dataframe.loc[rows, "Time"]
             startCoor = dataframe.loc[rows, "Starting coordinates"]
             endCoor = dataframe.loc[rows, "Finishing coordinates"]
             importance = dataframe.loc[rows, "Importance"]
@@ -97,8 +97,8 @@ class Graph:
                 endNode = Node(endCoor[0], startCoor[1], len(self.nodes), importance)
                 self.nodes.append(endNode)
 
-            startNode.add_connection(endNode, time)
-            endNode.add_connection(startNode, time)
+            startNode.add_connection(endNode, route_time)
+            endNode.add_connection(startNode, route_time)
 
 
 def heuristic(start_node, end_node):
@@ -134,7 +134,6 @@ def node_to_node_search(start_node, goal):
     start_node.g = 0
     tree_dict = {start_node: 0}
 
-    level = 0
     while len(open_list) != 0:
         current_node = open_list[0]
 
@@ -201,7 +200,6 @@ def search_round_routes(start_node):
             indicies.remove(index)
             index = indicies[-1] + 1
 
-
         elif hPath + curr_time > best_path:
             print("best_path is better than all other paths!")
             nodes_been.remove(curr_node)
@@ -228,7 +226,7 @@ def search_next_node(nodes_to_go, curr_time, nodes_been, curr_node, index):
     return heuristic(curr_node.nodes[index], curr_node) * 4146.282847732093 + curr_time
 
 
-def testing(connection_testing=list, time_dist=list):
+def testing(connection_testing, time_dist):
     """Function to contain all of the testing functions. This is just to reduce space."""
 
     def connections():
@@ -255,16 +253,16 @@ def testing(connection_testing=list, time_dist=list):
 
         dist = 0
         count = 0
-        time = 0
+        route_time = 0
         # Iterate through all of the nodes, and for every node, iterate through the connections. For each of the
-        # start-end node pairs, summate all of the collective distances and times.
+        # start-end node pairs, sum all of the collective distances and times.
         for node in graph.nodes:
             for connection in node.connections:
                 dist += heuristic(node, connection)
-                time += node.connections[connection]
+                route_time += node.connections[connection]
                 count += 1
 
-        print("\nAverage Time Per Distance: ", time / dist)
+        print("\nAverage Time Per Distance: ", route_time / dist)
 
     # Check which testing functions that we should be running.
     if connection_testing[0]:
