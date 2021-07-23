@@ -39,12 +39,17 @@ def preprocessing(unprocessed_raw_data):
     processed_data = pd.DataFrame(processed_data)
     processed_data = processed_data.rename(columns={0: "Time", 1: "Starting coordinates", 2: "Finishing coordinates"})
 
+    # Add the importance of each house to the processed_data
+
+    processed_data["Importance"] = [4, 10, 2, 5, 2, 6, 3, 6, 4, 2, 2, 5, 5, 5, 4, 7, 5, 5, 1, 5, 1, 7, 2, 6, 2, 2, 4, 3,
+                                    1, 8, 2, 2]
+
     return processed_data
 
 
 # TODO: Comment through the classes, I don't have the brains for this, so Rachel pop off bro.
 class Node:
-    def __init__(self, lat, longt, id):
+    def __init__(self, lat, longt, id, importance):
         self.lat = lat
         self.longt = longt
         self.connections = {}
@@ -54,6 +59,7 @@ class Node:
         self.f = None
         self.g = None
         self.h = None
+        self.importance = importance
 
     def add_connection(self, node, time):
         for key in self.connections:
@@ -72,6 +78,7 @@ class Graph:
             time = dataframe.loc[rows, "Time"]
             startCoor = dataframe.loc[rows, "Starting coordinates"]
             endCoor = dataframe.loc[rows, "Finishing coordinates"]
+            importance = dataframe.loc[rows, "Importance"]
             startNode = None
             endNode = None
             for node in self.nodes:
@@ -83,11 +90,11 @@ class Graph:
                     endNode = node
 
             if startNode is None:
-                startNode = Node(startCoor[0], startCoor[1], len(self.nodes))
+                startNode = Node(startCoor[0], startCoor[1], len(self.nodes), importance)
                 self.nodes.append(startNode)
 
             if endNode is None:
-                endNode = Node(endCoor[0], startCoor[1], len(self.nodes))
+                endNode = Node(endCoor[0], startCoor[1], len(self.nodes), importance)
                 self.nodes.append(endNode)
 
             startNode.add_connection(endNode, time)
@@ -119,8 +126,8 @@ def heuristic(start_node, end_node):
 def node_to_node_search(start_node, goal):
     from operator import attrgetter
 
-    checking_list = [start_node]
-    checked_list = []
+    open_list = [start_node]
+    closed_list = []
     final_route = []
 
     start_node.f = 0
@@ -128,16 +135,16 @@ def node_to_node_search(start_node, goal):
     tree_dict = {start_node: 0}
 
     level = 0
-    while len(checking_list) != 0:
-        current_node = checking_list[0]
+    while len(open_list) != 0:
+        current_node = open_list[0]
 
         # Set the new node to be the previous sub_node with the lowest f(x).
         if current_node != start_node:
-            current_node = min(checking_list, key=attrgetter('f'))
+            current_node = min(open_list, key=attrgetter('f'))
 
         #
         level = tree_dict[current_node]
-        checking_list.remove(current_node)
+        open_list.remove(current_node)
 
         if level == len(final_route):
             final_route.append(current_node)
@@ -145,7 +152,7 @@ def node_to_node_search(start_node, goal):
             final_route[level] = current_node
 
         # Add the current node to the checked list
-        checked_list.append(current_node)
+        closed_list.append(current_node)
 
         # Check if the goal node has been reached
         if current_node == goal:
@@ -154,7 +161,7 @@ def node_to_node_search(start_node, goal):
         # For the current_node, go through all of its connections, and determine their f(x) as a sum of their h(x)
         # and g(x).
         for sub_node in current_node.connections:
-            if sub_node in checked_list:
+            if sub_node in closed_list:
                 continue
             found = False
             for key, value in tree_dict.items():
@@ -167,11 +174,11 @@ def node_to_node_search(start_node, goal):
             sub_node.h = heuristic(sub_node, goal) * 4146.282847732093
             sub_node.f = sub_node.g + sub_node.h
 
-            checking_list.append(sub_node)
+            open_list.append(sub_node)
 
         print("Current Node:", current_node.id, current_node.f)
-        for sub_node in checking_list:
-            print("    Sub-Nodes Data:", sub_node.id, sub_node.f, len(checking_list))
+        for sub_node in open_list:
+            print("    Sub-Nodes Data:", sub_node.id, sub_node.f, sub_node.importance)
         print("\n")
 
 
@@ -234,6 +241,7 @@ def testing(connection_testing=list, time_dist=list):
         # Iterate through all of the nodes, and for every node, iterate through the connections. For each of the
         # node-node connections, print the id, long, lati, and time for the child node being connected to from the
         # parent node.
+
         for node in graph.nodes:
             print(node.id, node.lat, node.longt)
             for connect in node.connections:
@@ -273,7 +281,7 @@ def main():
     GRAPH = Graph(processed_data)
 
     direct_route = node_to_node_search(GRAPH.nodes[5], GRAPH.nodes[1])
-    hit_all_route = search_round_routes(GRAPH.nodes())
+    # hit_all_route = search_round_routes(GRAPH.nodes())
 
     testing(connection_testing=[False, GRAPH],
             time_dist=[False, GRAPH])
