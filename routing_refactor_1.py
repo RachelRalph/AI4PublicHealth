@@ -13,6 +13,7 @@ ROUTE_DATA = pd.DataFrame(ROUTES)
 GRAPH = False
 
 
+# TODO: Incorporate multi vist modifications for the importance factor
 def preprocessing(unprocessed_raw_data):
     """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
     version of the original data from the .shp file. """
@@ -40,9 +41,10 @@ def preprocessing(unprocessed_raw_data):
     processed_data = processed_data.rename(columns={0: "Time", 1: "Starting coordinates", 2: "Finishing coordinates"})
 
     # Add the importance of each house to the processed_data
-
     processed_data["Importance"] = [4, 10, 2, 5, 2, 6, 3, 6, 4, 2, 2, 5, 5, 5, 4, 7, 5, 5, 1, 5, 1, 7, 2, 6, 2, 2, 4, 3,
                                     1, 8, 2, 2]
+
+    print(processed_data)
 
     return processed_data
 
@@ -100,7 +102,21 @@ class Graph:
             startNode.add_connection(endNode, route_time)
             endNode.add_connection(startNode, route_time)
 
+    def convert_to_matrix(self):
+        matrix = []
+        for node in self.nodes:
+            row = []
+            for node in self.nodes:
+                row.append(None)
+            for connection in nodes.connections:
+                i = connection.id
+                row[i] = nodes.connections[connection]
+            matrix.append(row)
 
+        return matrix
+
+
+# TODO: Incorporate the house task importance into the heuristic function.
 def heuristic(start_node, end_node):
     """This function returns the shortest euclidean distance between two nodes. NOTE: This currently only works for
     2D data."""
@@ -122,7 +138,7 @@ def heuristic(start_node, end_node):
     return shortest_possible_distance
 
 
-# TODO: FIX THE NEXT THREE FUNCTIONS
+# TODO: Make this function more efficient.
 def node_to_node_search(start_node, goal):
     from operator import attrgetter
 
@@ -181,49 +197,106 @@ def node_to_node_search(start_node, goal):
         print("\n")
 
 
-def search_round_routes(start_node):
-    best_path = 10000
-    nodes_been = [start_node]
-    nodes_to_go = [node for node in GRAPH.nodes]
-    indicies = []
+# TODO: FIX THE FUNCTION
+def old_all_search():
+    def search_round_routes(start_node):
+        best_path = 10000
+        nodes_been = [start_node]
+        nodes_to_go = [node for node in GRAPH.nodes]
+        indicies = []
 
-    index = 0
-    curr_time = 0
+        index = 0
+        curr_time = 0
 
-    curr_node = start_node
+        curr_node = start_node
 
-    while len(nodes_been) != len(GRAPH.nodes):
-        indicies.append(index)
-        hPath = search_next_node(nodes_to_go, curr_time, nodes_been, curr_node, index)
-        if hPath == 0 or hPath == - 1:
-            nodes_to_go.append(curr_node)
-            indicies.remove(index)
-            index = indicies[-1] + 1
+        while len(nodes_been) != len(GRAPH.nodes):
+            indicies.append(index)
+            hPath = search_next_node(nodes_to_go, curr_time, nodes_been, curr_node, index)
+            if hPath == 0 or hPath == - 1:
+                nodes_to_go.append(curr_node)
+                indicies.remove(index)
+                index = indicies[-1] + 1
 
-        elif hPath + curr_time > best_path:
-            print("best_path is better than all other paths!")
-            nodes_been.remove(curr_node)
-            nodes_to_go.append(curr_node)
-            indicies.remove(index)
-            index = indicies[-1] + 1
+            elif hPath + curr_time > best_path:
+                print("best_path is better than all other paths!")
+                nodes_been.remove(curr_node)
+                nodes_to_go.append(curr_node)
+                indicies.remove(index)
+                index = indicies[-1] + 1
 
-        else:
-            node = curr_node.nodes[index]
-            nodes_been.append(curr_node)
-            if node in nodes_to_go:
-                nodes_to_go.remove(node)
-            curr_node = node
-            index = 0
+            else:
+                node = curr_node.nodes[index]
+                nodes_been.append(curr_node)
+                if node in nodes_to_go:
+                    nodes_to_go.remove(node)
+                curr_node = node
+                index = 0
 
-    return nodes_been
+        return nodes_been
+
+    def search_next_node(nodes_to_go, curr_time, nodes_been, curr_node, index):
+        if len(nodes_to_go) == 0:
+            return 0
+        elif len(curr_node.connections) == 0 or len(curr_node.connections) <= index:
+            return -1
+        return heuristic(curr_node.nodes[index], curr_node) * 4146.282847732093 + curr_time
 
 
-def search_next_node(nodes_to_go, curr_time, nodes_been, curr_node, index):
-    if len(nodes_to_go) == 0:
-        return 0
-    elif len(curr_node.connections) == 0 or len(curr_node.connections) <= index:
-        return -1
-    return heuristic(curr_node.nodes[index], curr_node) * 4146.282847732093 + curr_time
+def all_node_search():
+    # branch and bound search implementation???
+
+    # resource: https://www.techiedelight.com/travelling-salesman-problem-using-branch-and-bound/
+
+    matrix = [[1000, 20, 30, 10, 11],
+              [15, 1000, 16, 4, 2],
+              [3, 5, 1000, 2, 4],
+              [19, 6, 18, 1000, 3],
+              [16, 4, 7, 16, 1000]]
+
+    matrix = np.array(matrix)
+
+    def row_reduction(matrix):
+        # Get minimum values of all the rows
+        min_values = matrix.min(axis=1)
+
+        for row in range(len(matrix)):
+            for column in range(len(matrix[0])):
+                if min_values[row] != "inf" and matrix[row][column] != "inf":
+                    matrix[row][column] -= min_values[row]
+
+        return matrix, min_values
+
+    def col_reduction(matrix):
+        # Get minimum values of all the columns
+        min_values = matrix.min(axis=0)
+
+        for column in range(len(matrix[0])):
+            for row in range(len(matrix)):
+                if min_values[row] != "inf" and matrix[row][column] != "inf":
+                    matrix[row][column] -= min_values[column]
+
+        return matrix, min_values
+
+    def calculate_cost(matrix):
+        cost = 0
+
+        matrix, min_row = row_reduction(matrix)
+        matrix, min_col = col_reduction(matrix)
+
+
+        for index in range(len(min_row)):
+            if min_row[index] != float("inf"):
+                cost += min_row[index]
+            if min_col[index] != float("inf"):
+                cost += min_col[index]
+
+        return cost, matrix
+
+    price, matrix = calculate_cost(matrix)
+    print("\nMatrix:")
+    print(matrix, "\n")
+    print("Cost: ", price)
 
 
 def testing(connection_testing, time_dist):
@@ -278,7 +351,7 @@ def main():
     processed_data = preprocessing(ROUTE_DATA)
     GRAPH = Graph(processed_data)
 
-    direct_route = node_to_node_search(GRAPH.nodes[5], GRAPH.nodes[1])
+    # direct_route = node_to_node_search(GRAPH.nodes[5], GRAPH.nodes[1])
     # hit_all_route = search_round_routes(GRAPH.nodes())
 
     testing(connection_testing=[False, GRAPH],
@@ -288,4 +361,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    all_node_search()
