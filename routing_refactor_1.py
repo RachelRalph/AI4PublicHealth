@@ -2,6 +2,7 @@ import os
 import geopandas as gpd
 import pandas as pd
 import numpy as np
+import math
 import time
 
 # Get script and dataset file paths.
@@ -44,8 +45,6 @@ def preprocessing(unprocessed_raw_data):
     processed_data["Importance"] = [4, 10, 2, 5, 2, 6, 3, 6, 4, 2, 2, 5, 5, 5, 4, 7, 5, 5, 1, 5, 1, 7, 2, 6, 2, 2, 4, 3,
                                     1, 8, 2, 2]
 
-    print(processed_data)
-
     return processed_data
 
 
@@ -62,6 +61,8 @@ class Node:
         self.g = None
         self.h = None
         self.importance = importance
+        self.traveling_salesman_path = None
+        self.cost = 0
 
     def add_connection(self, node, route_time):
         for key in self.connections:
@@ -103,15 +104,11 @@ class Graph:
             endNode.add_connection(startNode, route_time)
 
     def convert_to_matrix(self):
-        matrix = []
+        matrix = np.zeros((len(self.nodes), len(self.nodes)))
+        matrix = np.where(matrix==0, math.inf, matrix)
         for node in self.nodes:
-            row = []
-            for node in self.nodes:
-                row.append(None)
-            for connection in nodes.connections:
-                i = connection.id
-                row[i] = nodes.connections[connection]
-            matrix.append(row)
+            for connections in node.connections:
+                matrix[node.id][connections.id] = node.connections[connections]
 
         return matrix
 
@@ -248,32 +245,39 @@ def all_node_search():
 
     # resource: https://www.techiedelight.com/travelling-salesman-problem-using-branch-and-bound/
 
-    matrix = [[1000, 20, 30, 10, 11],
-              [15, 1000, 16, 4, 2],
-              [3, 5, 1000, 2, 4],
-              [19, 6, 18, 1000, 3],
-              [16, 4, 7, 16, 1000]]
+    # Matrix below is a copy of the one in the article
+
+    import math
+    import numpy as np
+
+    matrix = [[math.inf, 20, 30, 10, 11],
+              [15, math.inf, 16, 4, 2],
+              [3, 5, math.inf, 2, 4],
+              [19, 6, 18, math.inf, 3],
+              [16, 4, 7, 16, math.inf]]
 
     matrix = np.array(matrix)
 
     def row_reduction(matrix):
         # Get minimum values of all the rows
-        min_values = matrix.min(axis=1)
+        min_values = np.min(matrix, axis=1)
 
         for row in range(len(matrix)):
             for column in range(len(matrix[0])):
-                if min_values[row] != "inf" and matrix[row][column] != "inf":
+                # Ideally, the min_values[row] would never be "Inf", so maybe we should remove that if check
+                if min_values[row] != math.inf and matrix[row][column] != math.inf:
                     matrix[row][column] -= min_values[row]
 
         return matrix, min_values
 
     def col_reduction(matrix):
         # Get minimum values of all the columns
-        min_values = matrix.min(axis=0)
+        min_values = np.min(matrix, axis=0)
 
         for column in range(len(matrix[0])):
             for row in range(len(matrix)):
-                if min_values[row] != "inf" and matrix[row][column] != "inf":
+                # Ideally, the min_values[row] would never be "Inf", so maybe we should remove that if check
+                if min_values[row] != math.inf and matrix[row][column] != math.inf:
                     matrix[row][column] -= min_values[column]
 
         return matrix, min_values
@@ -284,19 +288,98 @@ def all_node_search():
         matrix, min_row = row_reduction(matrix)
         matrix, min_col = col_reduction(matrix)
 
-
         for index in range(len(min_row)):
-            if min_row[index] != float("inf"):
+            if min_row[index] != math.inf:
                 cost += min_row[index]
-            if min_col[index] != float("inf"):
+            if min_col[index] != math.inf:
                 cost += min_col[index]
 
         return cost, matrix
 
-    price, matrix = calculate_cost(matrix)
+    class PriorityQueue():
+        def __init__(self):
+            self.queue = {}
+
+        def isEmpty(self):
+            return len(self.queue) == 0
+
+        def push(self, node, priority):
+            self.queue[node] = priority
+
+        def inQueue(self, node):
+            for node in self.queue:
+                if node.id == node.id:
+                    return True
+            return False
+
+        def pop(self):
+            max = 0
+            maxNode = None
+            for node in self.queue:
+                if max < self.queue[node]:
+                    max = self.queue[node]
+                    maxNode = node
+
+            del self.queue[node]
+            return node
+
+    def print_path(root):
+        next_node = root
+        print(next_node.id)
+        next_node = next_node.traveling_salesman_path
+        while (next_node != root):
+            print(next_node.id)
+            next_node = next_node.traveling_salesman_path
+
+    def branch_and_bound(graph):
+        cost_matrix = graph.convert_to_matrix()
+        pq = PriorityQueue()
+        root = graph.nodes[4]
+        closed_list = []
+
+        lower_bound = calculate_cost(cost_matrix)
+        pq.push(root, 0)
+
+        while not pq.isEmpty():
+            min = pq.pop()
+            print(min.id, min.cost)
+
+            if closed_list == len(graph.nodes):
+                min.traveling_salesman_path = root
+                print_path(root)
+                return
+
+            cost_matrix_copy = cost_matrix
+
+            for child in min.nodes:
+                found = False
+                for node in closed_list:
+                    if node.id == child.id:
+                        found = True
+                if not found:
+                    cost_for_step, cost_matrix_copy = calculate_cost(cost_matrix_copy)
+                    # print(cost_for_step)
+                    child.cost = min.cost + cost_for_step
+                    pq.push(child, child.cost)
+
+            closed_list.append(min)
+
+
+    branch_and_bound(GRAPH)
+    """price, matrix = calculate_cost(matrix)
     print("\nMatrix:")
     print(matrix, "\n")
-    print("Cost: ", price)
+    print("Cost: ", price)"""
+
+    # matrix = GRAPH.convert_to_matrix()
+    # print(matrix)
+
+    """
+    for row in range(len(matrix)):
+      for col in range(len(matrix[0])):
+        print(col, end = " ")
+      print("")
+    """
 
 
 def testing(connection_testing, time_dist):
@@ -353,6 +436,7 @@ def main():
 
     # direct_route = node_to_node_search(GRAPH.nodes[5], GRAPH.nodes[1])
     # hit_all_route = search_round_routes(GRAPH.nodes())
+    all_node_search()
 
     testing(connection_testing=[False, GRAPH],
             time_dist=[False, GRAPH])
@@ -361,5 +445,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    all_node_search()
+    main()
