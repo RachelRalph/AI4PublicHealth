@@ -3,6 +3,8 @@ import geopandas as gpd
 import pandas as pd
 import numpy as np
 import math
+import copy
+from operator import attrgetter
 import time
 
 # Get script and dataset file paths.
@@ -97,7 +99,7 @@ class Graph:
                 self.nodes.append(startNode)
 
             if endNode is None:
-                endNode = Node(endCoor[0], startCoor[1], len(self.nodes), importance)
+                endNode = Node(endCoor[0], endCoor[1], len(self.nodes), importance)
                 self.nodes.append(endNode)
 
             startNode.add_connection(endNode, route_time)
@@ -105,7 +107,7 @@ class Graph:
 
     def convert_to_matrix(self):
         matrix = np.zeros((len(self.nodes), len(self.nodes)))
-        matrix = np.where(matrix==0, math.inf, matrix)
+        matrix = np.where(matrix == 0, math.inf, matrix)
         for node in self.nodes:
             for connections in node.connections:
                 matrix[node.id][connections.id] = node.connections[connections]
@@ -137,8 +139,6 @@ def heuristic(start_node, end_node):
 
 # TODO: Make this function more efficient.
 def node_to_node_search(start_node, goal):
-    from operator import attrgetter
-
     open_list = [start_node]
     closed_list = []
     final_route = []
@@ -195,7 +195,7 @@ def node_to_node_search(start_node, goal):
 
 
 # TODO: FIX THE FUNCTION
-def old_all_search():
+"""def old_all_search():
     def search_round_routes(start_node):
         best_path = 10000
         nodes_been = [start_node]
@@ -237,11 +237,11 @@ def old_all_search():
             return 0
         elif len(curr_node.connections) == 0 or len(curr_node.connections) <= index:
             return -1
-        return heuristic(curr_node.nodes[index], curr_node) * 4146.282847732093 + curr_time
+        return heuristic(curr_node.nodes[index], curr_node) * 4146.282847732093 + curr_time"""
 
 
 def all_node_search():
-    # branch and bound search implementation???
+    """# branch and bound search implementation???
 
     # resource: https://www.techiedelight.com/travelling-salesman-problem-using-branch-and-bound/
 
@@ -256,7 +256,7 @@ def all_node_search():
               [19, 6, 18, math.inf, 3],
               [16, 4, 7, 16, math.inf]]
 
-    matrix = np.array(matrix)
+    matrix = np.array(matrix)"""
 
     def row_reduction(matrix):
         # Get minimum values of all the rows
@@ -267,7 +267,7 @@ def all_node_search():
                 # Ideally, the min_values[row] would never be "Inf", so maybe we should remove that if check
                 if min_values[row] != math.inf and matrix[row][column] != math.inf:
                     matrix[row][column] -= min_values[row]
-
+        print(matrix)
         return matrix, min_values
 
     def col_reduction(matrix):
@@ -279,7 +279,7 @@ def all_node_search():
                 # Ideally, the min_values[row] would never be "Inf", so maybe we should remove that if check
                 if min_values[row] != math.inf and matrix[row][column] != math.inf:
                     matrix[row][column] -= min_values[column]
-
+        print(matrix)
         return matrix, min_values
 
     def calculate_cost(matrix):
@@ -295,6 +295,18 @@ def all_node_search():
                 cost += min_col[index]
 
         return cost, matrix
+
+    def explore_edge(node_from, node_to, matrix):
+        matrix[node_from, :] = math.inf
+        matrix[:, node_to] = math.inf
+        matrix[node_to, node_from] = math.inf
+        return matrix
+
+    """def explore_edge_test(index_from, index_to, matrix):
+        matrix[index_from, :] = math.inf
+        matrix[:, index_to] = math.inf
+        matrix[index_to, index_from] = math.inf
+        return matrix"""
 
     class PriorityQueue():
         def __init__(self):
@@ -313,13 +325,15 @@ def all_node_search():
             return False
 
         def pop(self):
-            max = 0
-            maxNode = None
-            for node in self.queue:
-                if max < self.queue[node]:
-                    max = self.queue[node]
-                    maxNode = node
 
+            """min = math.inf
+            minNode = None
+            for node in self.queue:
+                if min  self.queue[node]:
+                    min = self.queue[node]
+                    minNode = node"""
+            node = min(self.queue, key=attrgetter('cost'))
+            # print(node.id, node.cost)
             del self.queue[node]
             return node
 
@@ -331,41 +345,78 @@ def all_node_search():
             print(next_node.id)
             next_node = next_node.traveling_salesman_path
 
-    def branch_and_bound(graph):
+    def branch_and_bound(graph, start_node):
         cost_matrix = graph.convert_to_matrix()
+        initial_cost, cost_matrix = calculate_cost(cost_matrix)
         pq = PriorityQueue()
-        root = graph.nodes[4]
+        root = graph.nodes[start_node]
         closed_list = []
 
-        lower_bound = calculate_cost(cost_matrix)
+        """copy_copy = copy.deepcopy(cost_matrix)
+        print(copy_copy)
+        print("\n")
+        print(explore_edge(root.id, graph.nodes[0].id, copy_copy))
+        print("\n")
+        copy_copy = copy.deepcopy(cost_matrix)
+        print(explore_edge(root.id, graph.nodes[1].id, copy_copy))
+        print("\n")
+        copy_copy = copy.deepcopy(cost_matrix)
+        print(explore_edge(root.id, graph.nodes[2].id, copy_copy))
+        print("\n")
+        copy_copy = copy.deepcopy(cost_matrix)
+        print(explore_edge(root.id, graph.nodes[3].id, copy_copy))
+        print("\n")
+        
+        copy_copy = copy.deepcopy(cost_matrix)
+        print(explore_edge(root.id, graph.nodes[4].id, copy_copy))
+        print("\n")
+        copy_copy = copy.deepcopy(cost_matrix)"""
         pq.push(root, 0)
 
         while not pq.isEmpty():
-            min = pq.pop()
-            print(min.id, min.cost)
+            """for node in pq.queue:
+                print(node.id, pq.queue[node])"""
 
-            if closed_list == len(graph.nodes):
-                min.traveling_salesman_path = root
+            parent = pq.pop()
+            # print(parent.id, parent.cost)
+
+            # print(closed_list, "length: ", len(closed_list))
+            # print(len(graph.nodes))
+
+            if closed_list == len(graph.nodes) - 1:  # This never gets called. :(
+                parent.traveling_salesman_path = root
                 print_path(root)
                 return
 
-            cost_matrix_copy = cost_matrix
+            # lower_bound, cost_matrix = calculate_cost(cost_matrix)
+            # print(cost_matrix)
+            # print(lower_bound)
+            cost_matrix_copy = copy.deepcopy(cost_matrix)
 
-            for child in min.nodes:
-                found = False
-                for node in closed_list:
-                    if node.id == child.id:
-                        found = True
-                if not found:
+            print(parent.id)
+            for sub_node in parent.connections:
+                total_cost = initial_cost
+                # cost_matrix_copy = copy.deepcopy(cost_matrix)
+                if sub_node not in closed_list:
+                    print(copy_copy[sub_node.id, parent.id])
+                    total_cost += cost_matrix[sub_node.id, parent.id]
+                    # print("   Node", sub_node.id, "Cost", total_cost)
+                    # print("\n")
+
+                    cost_matrix_copy = explore_edge(parent.id, sub_node.id, cost_matrix_copy)
                     cost_for_step, cost_matrix_copy = calculate_cost(cost_matrix_copy)
-                    # print(cost_for_step)
-                    child.cost = min.cost + cost_for_step
-                    pq.push(child, child.cost)
+                    total_cost += cost_for_step
+                    sub_node.cost = total_cost
+                    pq.push(sub_node, sub_node.cost)
+                print("    ", sub_node.id, sub_node.cost)
+            closed_list.append(parent)
 
-            closed_list.append(min)
+    """price, matrix = calculate_cost(matrix)
+    matrix = explore_edge_test(0, 2, matrix)
+    price, matrix = calculate_cost(matrix)
+    print(matrix)"""
+    branch_and_bound(GRAPH, 0)
 
-
-    branch_and_bound(GRAPH)
     """price, matrix = calculate_cost(matrix)
     print("\nMatrix:")
     print(matrix, "\n")
@@ -431,9 +482,42 @@ def main():
     global GRAPH
 
     start_time = time.time()
-    processed_data = preprocessing(ROUTE_DATA)
-    GRAPH = Graph(processed_data)
+    # processed_data = preprocessing(ROUTE_DATA)
 
+    processed_data = [[20, [0, 0], [1,1], 0],
+                      [30, [0, 0], [2,2], 0],
+                      [10, [0, 0], [3, 3], 0],
+                      [11, [0, 0], [4, 4], 0],
+                      [15, [1, 1], [0, 0], 0],
+                      [16, [1, 1], [2, 2], 0],
+                      [4, [1, 1], [3, 3], 0],
+                      [2, [1, 1], [4, 4], 0],
+                      [3, [2, 2], [0, 0], 0],
+                      [5, [2, 2], [1, 1], 0],
+                      [2, [2, 2], [3, 3], 0],
+                      [4, [2, 2], [4, 4], 0],
+                      [19, [3, 3], [0, 0], 0],
+                      [6, [3, 3], [1, 1], 0],
+                      [18, [3, 3], [2, 2], 0],
+                      [3, [3, 3], [4, 4], 0],
+                      [16, [4, 4], [0, 0], 0],
+                      [4, [4, 4], [1, 1], 0],
+                      [7, [4, 4], [2, 2], 0],
+                      [16, [4, 4], [3, 3], 0]]
+    processed_data = pd.DataFrame(processed_data)
+    processed_data.columns = ["Time", "Starting coordinates", "Finishing coordinates", "Importance"]
+    print(processed_data)
+    print("\n")
+
+    GRAPH = Graph(processed_data)
+    print(GRAPH.convert_to_matrix())
+    """for node in GRAPH.nodes:
+        print(node.id, node.lat, node.longt)
+        for connections in node.connections:
+            print("    Node:", connections.id)
+            print("          Long/Lat:", connections.lat, connections.longt)
+            print("          Time:", node.connections[connections])
+    print("\n")"""
     # direct_route = node_to_node_search(GRAPH.nodes[5], GRAPH.nodes[1])
     # hit_all_route = search_round_routes(GRAPH.nodes())
     all_node_search()
