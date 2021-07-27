@@ -1,7 +1,14 @@
 """
 The following functions work perfectly, don't doubt them whatsoever:
-
-
+    row_reduction
+    col_reduction
+    calculate_cost
+    explore_edges
+    ????
+    ????
+    testing
+    sample_data
+    main
 """
 
 import os
@@ -11,6 +18,8 @@ import numpy as np
 import math
 import copy
 from operator import attrgetter
+import matplotlib.pyplot as plt
+import networkx as nx
 import time
 
 # Get script and dataset file paths.
@@ -307,7 +316,6 @@ def testing(data_frame=None, graph=None, matrix=None, costs_list=[]):
         print("Total Cost: ", costs_list[3])
         print()
 
-
     # Check what to print.
     if data_frame is not None:
         view_data()
@@ -317,7 +325,6 @@ def testing(data_frame=None, graph=None, matrix=None, costs_list=[]):
         view_cost_matrix()
     if len(costs_list) != 0:
         costs()
-
 
 
 def sample_data(sample_matrix_number):
@@ -395,11 +402,34 @@ def sample_data(sample_matrix_number):
 
     return testing_data, data_check
 
+def visualization(graph_data):
+    G = nx.Graph()
+
+    node_list = []
+    edge_list = []
+    edge_labels_dict = {}
+
+    for node in graph_data.nodes:
+        node_list.append(node.id)
+        for connections in node.connections:
+            edge_list.append([node.id, connections.id])
+            edge_labels_dict[(node.id, connections.id)] = node.connections[connections]
+
+    G.add_nodes_from(node_list)
+    G.add_edges_from(edge_list)
+
+    pos = nx.spring_layout(G)
+
+    nx.draw(G, pos, with_labels = True)
+    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
+    # plt.savefig("simple_path.png")  # save as png
+    plt.show()
+
 
 def main():
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 2
+        sample_number = 4
         data, data_checker = sample_data(sample_number)
 
         graphical_data = Graph(data)
@@ -421,7 +451,8 @@ def main():
         matrix_data = graphical_data.convert_to_matrix()
 
     # testing(matrix=matrix_data)
-    # testing(data_frame=data, graph=graphical_data)
+    testing(graph=graphical_data)
+    # testing(data_frame=data, graph=graphical_data, matrix=matrix_data)
     final_path = branch_and_bound(0, matrix_data, graphical_data)
 
     if TESTING:
@@ -433,10 +464,13 @@ def main():
             print("\nFailure. The final path is not equal to the of the brute force path.")
             print("    Desired Outcome: ", data_checker)
             print("    Received Outcome: ", final_path)
+    else:
+        print(final_path)
 
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
+    visualization(graphical_data)
 
 if __name__ == "__main__":
     main()
