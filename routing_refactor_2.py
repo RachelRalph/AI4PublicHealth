@@ -1,3 +1,11 @@
+"""
+The following functions work perfectly, don't doubt them whatsoever:
+
+
+"""
+
+
+
 import os
 import geopandas as gpd
 import pandas as pd
@@ -137,7 +145,7 @@ class PriorityQueue():
         return False
 
     def pop(self):
-        node = max(self.queue, key=attrgetter('cost'))
+        node = min(self.queue, key=attrgetter('cost'))
         cost = self.queue[node]
         # print(node.id, node.cost)
         del self.queue[node]
@@ -209,6 +217,7 @@ def print_path(root):
 
 def branch_and_bound(start_node, original_matrix, graph):
     initial_cost, cost_matrix = calculate_cost(original_matrix)
+    # print(cost_matrix)
     priority_queue = PriorityQueue()
     parent_node = graph.nodes[start_node]
     closed_list = []
@@ -225,27 +234,33 @@ def branch_and_bound(start_node, original_matrix, graph):
 
         # testing(matrix=cost_matrix_copy)
 
-        print(parent.id)
+        print(parent.id, cost)
 
         for sub_node in parent.connections:
+            print(sub_node.id)
             cost_matrix_copy = copy.deepcopy(cost_matrix)
             """for item in closed_list:
                 print("   ", sub_node.id,  item.id, item.cost)"""
             total_cost = cost
-            # print("Node Cost: ", total_cost)
+            print("Node Cost: ", total_cost)
             if sub_node not in closed_list:
                 total_cost += cost_matrix[parent.id, sub_node.id]
-                # print("Edge Cost: ", cost_matrix[parent.id, sub_node.id])
+                print("Edge Cost: ", cost_matrix[parent.id, sub_node.id])
 
                 cost_matrix_copy = explore_edge(parent.id, sub_node.id, cost_matrix_copy)
-                # testing(matrix = cost_matrix_copy)
+
                 cost_for_step, cost_matrix_copy = calculate_cost(cost_matrix_copy)
-                # print("LB Cost: ", cost_for_step)
+                print("LB Cost: ", cost_for_step)
+
+                if sub_node.id == 4 or sub_node.id == 2:
+                    testing(matrix = cost_matrix_copy)
+
                 total_cost += cost_for_step
-                # print("Total Cost: ", total_cost, "\n")
+                print("Total Cost: ", total_cost, "\n")
                 sub_node.cost = total_cost
                 priority_queue.push(sub_node, sub_node.cost)
-            print("    ", sub_node.id, sub_node.cost)
+            # print("    ", sub_node.id, sub_node.cost)
+        print("------------------------")
         closed_list.append(parent)
 
 
@@ -307,7 +322,7 @@ def sample_data(sample_matrix_number):
                         [300, [2, 2], [4, 4], 0],
                         [500, [0, 0], [4, 4], 0]]
 
-    else:
+    elif sample_matrix_number == 3:
         # Based on the tutorial article.
         testing_data = [[20, [0, 0], [1, 1], 0],
                         [30, [0, 0], [2, 2], 0],
@@ -330,6 +345,12 @@ def sample_data(sample_matrix_number):
                         [7, [4, 4], [2, 2], 0],
                         [16, [4, 4], [3, 3], 0]]
 
+    else:
+        sample_matrix_number = [[10, [0, 0], [1, 1], 0],
+                                [10, [1, 1], [2, 2], 0],
+                                [60, [1, 1], [3, 3], 0],
+                                [800, [0, 0], [3, 3], 0]]
+
     # Turn the chosen matrix into a pd.DataFrame, and set the column labels.
     testing_data = pd.DataFrame(testing_data)
     testing_data.columns = ["Time", "Starting coordinates", "Finishing coordinates", "Importance"]
@@ -340,7 +361,7 @@ def sample_data(sample_matrix_number):
 def main():
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 1
+        sample_number = 3
         data = sample_data(sample_number)
 
         graphical_data = Graph(data)
@@ -353,7 +374,7 @@ def main():
                            [19, 6, 18, math.inf, 3],
                            [16, 4, 7, 16, math.inf]]
             matrix_data = np.array(matrix_data)
-            print("Path should be: 0 2 3 1 4 0\n")
+            print("Path should be: 0 3 1 4 2\n")
 
 
     # If we are using the dummy data set:
@@ -363,7 +384,7 @@ def main():
         graphical_data = Graph(data)
         matrix_data = graphical_data.convert_to_matrix()
 
-    #testing(matrix=matrix_data)
+    # testing(matrix=matrix_data)
     branch_and_bound(0, matrix_data, graphical_data)
 
     print("\nMinutes since execution:", (time.time() - START_TIME) / 60)
