@@ -4,8 +4,6 @@ The following functions work perfectly, don't doubt them whatsoever:
 
 """
 
-
-
 import os
 import geopandas as gpd
 import pandas as pd
@@ -135,8 +133,8 @@ class PriorityQueue():
     def isEmpty(self):
         return len(self.queue) == 0
 
-    def push(self, node, priority):
-        self.queue[node] = priority
+    def push(self, node, priority, matrix):
+        self.queue[node] = [priority, matrix]
 
     def inQueue(self, node):
         for node in self.queue:
@@ -146,10 +144,11 @@ class PriorityQueue():
 
     def pop(self):
         node = min(self.queue, key=attrgetter('cost'))
-        cost = self.queue[node]
-        # print(node.id, node.cost)
+        cost = self.queue[node][0]
+        matrix = self.queue[node][1]
+
         del self.queue[node]
-        return node, cost
+        return node, cost, matrix
 
 
 def row_reduction(matrix):
@@ -193,7 +192,7 @@ def calculate_cost(matrix):
     return cost, matrix
 
 
-def explore_edge(node_from, node_to, matrix):
+def explore_edge(start_node, node_from, node_to, matrix):
     # Set rows to math.inf.
     matrix[node_from, :] = math.inf
 
@@ -201,7 +200,7 @@ def explore_edge(node_from, node_to, matrix):
     matrix[:, node_to] = math.inf
 
     # Set (i,j) and (j,i) to math.inf.
-    matrix[node_to, node_from] = math.inf
+    matrix[node_to, start_node] = math.inf
 
     return matrix
 
@@ -216,55 +215,62 @@ def print_path(root):
 
 
 def branch_and_bound(start_node, original_matrix, graph):
+    # Reduce the original matrix.
     initial_cost, cost_matrix = calculate_cost(original_matrix)
-    # print(cost_matrix)
+
     priority_queue = PriorityQueue()
     parent_node = graph.nodes[start_node]
     closed_list = []
+    final_list = []
 
-    priority_queue.push(parent_node, initial_cost)
+    priority_queue.push(parent_node, initial_cost, cost_matrix)
 
     while not priority_queue.isEmpty():
-        parent, cost = priority_queue.pop()
+        parent, cost, parent_matrix = priority_queue.pop()
 
-        """if closed_list == len(graph.nodes) - 1:  # This never gets called. :(
+        if closed_list == len(graph.nodes) - 1:  # This never gets called. :(
             parent.traveling_salesman_path = parent_node
             print_path(parent_node)
-            return"""
-
-        # testing(matrix=cost_matrix_copy)
+            return
 
         print(parent.id, cost)
 
         for sub_node in parent.connections:
             print(sub_node.id)
-            cost_matrix_copy = copy.deepcopy(cost_matrix)
-            """for item in closed_list:
-                print("   ", sub_node.id,  item.id, item.cost)"""
+            # Set initial cost to that of the parent cost.
             total_cost = cost
-            print("Node Cost: ", total_cost)
+            parent_matrix_copy = copy.deepcopy(parent_matrix)
+
             if sub_node not in closed_list:
-                total_cost += cost_matrix[parent.id, sub_node.id]
-                print("Edge Cost: ", cost_matrix[parent.id, sub_node.id])
+                # Add the cost of the edge to the total_cost. The edge cost must be retrieved from the starting node
+                # reduced cost matrix (cost_matrix).
+                edge_cost = cost_matrix[parent.id, sub_node.id]
+                total_cost += edge_cost
 
-                cost_matrix_copy = explore_edge(parent.id, sub_node.id, cost_matrix_copy)
-
-                cost_for_step, cost_matrix_copy = calculate_cost(cost_matrix_copy)
-                print("LB Cost: ", cost_for_step)
-
-                if sub_node.id == 4 or sub_node.id == 2:
-                    testing(matrix = cost_matrix_copy)
-
+                # Add the cost of the lower bound starting at the sub_node. This means that we need to add the
+                # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
+                # cost. NOTE: This must be done on the current parent reduced matrix.
+                parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
+                # print(parent_matrix_copy_explored)
+                cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
                 total_cost += cost_for_step
-                print("Total Cost: ", total_cost, "\n")
+
                 sub_node.cost = total_cost
-                priority_queue.push(sub_node, sub_node.cost)
-            # print("    ", sub_node.id, sub_node.cost)
+
+                priority_queue.push(sub_node, sub_node.cost, parent_matrix_copy_explored)
+
+                # testing(costs_list=[cost, edge_cost, cost_for_step, total_cost])
+                # print("    ", sub_node.id, sub_node.cost)
+
         print("------------------------")
         closed_list.append(parent)
 
+    for item in closed_list:
+        final_list.append(item.id)
+    return final_list
 
-def testing(data_frame=None, graph=None, matrix=None):
+
+def testing(data_frame=None, graph=None, matrix=None, costs_list=[]):
     """Function to contain all of the testing functions. This is just to reduce space."""
 
     def view_data():
@@ -294,6 +300,14 @@ def testing(data_frame=None, graph=None, matrix=None):
         print(matrix)
         print("")
 
+    def costs():
+        print("Node Cost: ", costs_list[0])
+        print("Edge Cost: ", costs_list[1])
+        print("Lower Bound Cost: ", costs_list[2])
+        print("Total Cost: ", costs_list[3])
+        print()
+
+
     # Check what to print.
     if data_frame is not None:
         view_data()
@@ -301,29 +315,37 @@ def testing(data_frame=None, graph=None, matrix=None):
         view_connections()
     if matrix is not None:
         view_cost_matrix()
+    if len(costs_list) != 0:
+        costs()
+
 
 
 def sample_data(sample_matrix_number):
     """Returns one of the following matrices to be used throughout the code for testing."""
 
     # Get the sample matrix of choice.
+
+    # Triangle + Dead end.
     if sample_matrix_number == 1:
-        # Triangle + Dead end.
         testing_data = [[10, [0, 0], [1, 1], 0],
                         [10, [1, 1], [2, 2], 0],
                         [60, [1, 1], [3, 3], 0],
                         [800, [0, 0], [3, 3], 0]]
 
+        data_check = [0, 1, 2, 1, 3]
+
+    # Diamond + Dead end.
     elif sample_matrix_number == 2:
-        # Diamond + Dead end.
         testing_data = [[10, [0, 0], [1, 1], 0],
                         [10, [1, 1], [2, 2], 0],
                         [20, [2, 2], [3, 3], 0],
                         [300, [2, 2], [4, 4], 0],
                         [500, [0, 0], [4, 4], 0]]
 
+        data_check = [0, 1, 2, 3, 2, 4]
+
+    # Based on the tutorial article.
     elif sample_matrix_number == 3:
-        # Based on the tutorial article.
         testing_data = [[20, [0, 0], [1, 1], 0],
                         [30, [0, 0], [2, 2], 0],
                         [10, [0, 0], [3, 3], 0],
@@ -345,24 +367,40 @@ def sample_data(sample_matrix_number):
                         [7, [4, 4], [2, 2], 0],
                         [16, [4, 4], [3, 3], 0]]
 
+        data_check = [0, 3, 1, 4, 2]
+
+    # Geeks for Geeks TSP Example
     else:
-        sample_matrix_number = [[10, [0, 0], [1, 1], 0],
-                                [10, [1, 1], [2, 2], 0],
-                                [60, [1, 1], [3, 3], 0],
-                                [800, [0, 0], [3, 3], 0]]
+        testing_data = [[10, [0, 0], [1, 1], 0],
+                        [15, [0, 0], [2, 2], 0],
+                        [20, [0, 0], [3, 3], 0],
+
+                        [10, [1, 1], [0, 0], 0],
+                        [35, [1, 1], [2, 2], 0],
+                        [25, [1, 1], [3, 3], 0],
+
+                        [15, [2, 2], [0, 0], 0],
+                        [35, [2, 2], [1, 1], 0],
+                        [30, [2, 2], [3, 3], 0],
+
+                        [20, [3, 3], [0, 0], 0],
+                        [25, [3, 3], [1, 1], 0],
+                        [30, [3, 3], [2, 2], 0]]
+
+        data_check = [0, 1, 3, 2]
 
     # Turn the chosen matrix into a pd.DataFrame, and set the column labels.
     testing_data = pd.DataFrame(testing_data)
     testing_data.columns = ["Time", "Starting coordinates", "Finishing coordinates", "Importance"]
 
-    return testing_data
+    return testing_data, data_check
 
 
 def main():
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 3
-        data = sample_data(sample_number)
+        sample_number = 2
+        data, data_checker = sample_data(sample_number)
 
         graphical_data = Graph(data)
         matrix_data = graphical_data.convert_to_matrix()
@@ -374,8 +412,6 @@ def main():
                            [19, 6, 18, math.inf, 3],
                            [16, 4, 7, 16, math.inf]]
             matrix_data = np.array(matrix_data)
-            print("Path should be: 0 3 1 4 2\n")
-
 
     # If we are using the dummy data set:
     else:
@@ -385,9 +421,21 @@ def main():
         matrix_data = graphical_data.convert_to_matrix()
 
     # testing(matrix=matrix_data)
-    branch_and_bound(0, matrix_data, graphical_data)
+    # testing(data_frame=data, graph=graphical_data)
+    final_path = branch_and_bound(0, matrix_data, graphical_data)
 
-    print("\nMinutes since execution:", (time.time() - START_TIME) / 60)
+    if TESTING:
+        if final_path == data_checker:
+            print("\nSuccess. The final path is equal to that of the brute force path.")
+            print("    Desired Outcome: ", data_checker)
+            print("    Received Outcome: ", final_path)
+        else:
+            print("\nFailure. The final path is not equal to the of the brute force path.")
+            print("    Desired Outcome: ", data_checker)
+            print("    Received Outcome: ", final_path)
+
+    print("\n------------------------")
+    print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
 
 if __name__ == "__main__":
