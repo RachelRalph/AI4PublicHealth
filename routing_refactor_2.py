@@ -29,9 +29,6 @@ DATA_PATH = os.path.join(SCRIPT_PATH, "DummyData.shp")
 ROUTES = gpd.read_file(DATA_PATH)
 ROUTE_DATA = pd.DataFrame(ROUTES)
 
-# General Parameters
-TESTING = False
-
 # Get the start time.
 START_TIME = time.time()
 
@@ -134,16 +131,22 @@ class Graph:
 
         return matrix
 
+    def size(self):
+        return len(self.nodes)
 
-class PriorityQueue():
+
+class PriorityQueue:
     def __init__(self):
         self.queue = {}
 
     def isEmpty(self):
         return len(self.queue) == 0
 
-    def push(self, node, priority, matrix):
+    def push_with_matrix(self, node, priority, matrix=[]):
         self.queue[node] = [priority, matrix]
+
+    def push_wo_matrix(self, node, priority):
+        self.queue[node] = priority
 
     def inQueue(self, node):
         for node in self.queue:
@@ -151,7 +154,7 @@ class PriorityQueue():
                 return True
         return False
 
-    def pop(self):
+    def pop_with_matrix(self):
         node = min(self.queue, key=attrgetter('cost'))
         cost = self.queue[node][0]
         matrix = self.queue[node][1]
@@ -159,39 +162,83 @@ class PriorityQueue():
         del self.queue[node]
         return node, cost, matrix
 
-
-def row_reduction(matrix):
-    # Get minimum values of all the rows
-    min_values = np.min(matrix, axis=1)
-
-    for row in range(len(matrix)):
-        for column in range(len(matrix[0])):
-            # Ideally, the min_values[row] would never be "Inf", so maybe we should remove that if check
-            if min_values[row] != math.inf and matrix[row][column] != math.inf:
-                matrix[row][column] -= min_values[row]
-
-    return matrix, min_values
+    def pop_wo_matrix(self):
+        node = min(self.queue, key=attrgetter('cost'))
+        cost = self.queue[node]
+        del self.queue[node]
+        return node, cost
 
 
-def col_reduction(matrix):
-    # Get minimum values of all the columns
-    min_values = np.min(matrix, axis=0)
+class Solid_State_Node():
 
-    for column in range(len(matrix[0])):
-        for row in range(len(matrix)):
-            # Ideally, the min_values[row] would never be "Inf", so maybe we should remove that if check
-            if min_values[row] != math.inf and matrix[row][column] != math.inf:
-                matrix[row][column] -= min_values[column]
+    def __init__(self, parent_node, node_id, node, level, reduced_matrix, cost):
+        self.node = node
+        self.node_id = node_id
+        self.reduced_matrix = reduced_matrix
+        self.parent_node = parent_node
+        self.level = level
+        self.cost = cost
+        self.children = []
+        if parent_node is not None:
+            parent_node.add_children(self)
+            self.closedList = parent_node.closedList + [parent_node.node]
 
-    return matrix, min_values
+        else:
+            self.closedList = []
+
+    def add_children(self, child):
+        self.children.append(child)
 
 
+class Solid_State_Tree():
+
+    def __init__(self, root):
+        self.root = root
+
+
+# Following are the functions.
 def calculate_cost(matrix):
+    """Calculates the reduction cost of the matrix. Returns the adjacency matrix (reduced matrix) and the associated
+    cost. """
     cost = 0
 
-    matrix, min_row = row_reduction(matrix)
-    matrix, min_col = col_reduction(matrix)
+    def row_reduction():
+        """Reduce the rows. Each row is reduced based on the lowest number in itself. Returns the row reduced matrix."""
 
+        # Get minimum values of all the rows. Note that this includes the zeros in the rows.
+        min_values = np.min(matrix, axis=1)
+
+        # TODO: There has to be a more efficient way of doing this than going through two for loops.
+        # Iterate through all of the rows and columns and subtract the row-respective min_value from all of the
+        # numbers in the respective row.
+        for row in range(len(matrix)):
+            for column in range(len(matrix[0])):
+                if min_values[row] != math.inf and matrix[row][column] != math.inf:
+                    matrix[row][column] -= min_values[row]
+
+        return matrix, min_values
+
+    def col_reduction():
+        """Reduce the columns. Each column is reduced based on the lowest number in itself. Returns the column
+        reduced matrix. """
+
+        # Get minimum values of all the columns. Note that this includes the zeros in the columns.
+        min_values = np.min(matrix, axis=0)
+
+        # TODO: There has to be a more efficient way of doing this than going through two for loops.
+        # Iterate through all of the columns and rows and subtract the column-respective min_value from all of the
+        # numbers in the respective column.
+        for column in range(len(matrix[0])):
+            for row in range(len(matrix)):
+                if min_values[row] != math.inf and matrix[row][column] != math.inf:
+                    matrix[row][column] -= min_values[column]
+
+        return matrix, min_values
+
+    matrix, min_row = row_reduction()
+    matrix, min_col = col_reduction()
+
+    # Iterate over the min_row and min_column lists and add each value within them to the cost variable.
     for index in range(len(min_row)):
         if min_row[index] != math.inf:
             cost += min_row[index]
@@ -202,18 +249,22 @@ def calculate_cost(matrix):
 
 
 def explore_edge(start_node, node_from, node_to, matrix):
+    """Sets the node_from row, node_to column, and the point (node_to, node_from) to math.inf. Returns the resulting
+    matrix. """
+
     # Set rows to math.inf.
     matrix[node_from, :] = math.inf
 
     # Set columns to math.inf.
     matrix[:, node_to] = math.inf
 
-    # Set (i,j) and (j,i) to math.inf.
+    # Set (j,i) to math.inf.
     matrix[node_to, start_node] = math.inf
 
     return matrix
 
 
+# TODO: Refactor the following code / make sure it works properly.
 def print_path(root):
     next_node = root
     print(next_node.id)
@@ -223,157 +274,295 @@ def print_path(root):
         next_node = next_node.traveling_salesman_path
 
 
-def branch_and_bound(start_node, original_matrix, graph):
-    original_matrix_copy = copy.deepcopy(original_matrix)
-    # Reduce the original matrix.
-    initial_cost, cost_matrix = calculate_cost(original_matrix_copy)
+# TODO: Refactor the following code / make sure it works properly.
+def search_solid_state_tree(root):
+    if root.parent_node is not None:
+        print("Parent: ", root.parent_node.node_id, "ID: ", root.node_id, "House: ", root.node.id)
+    else:
+        print("ID: ", root.node_id, "House: ", root.node.id)
 
-    HEUR = 3
+    for child in root.children:
+        search_solid_state_tree(child)
+
+
+# TODO: Refactor the following code / make sure it works properly.
+def tutorial_algorithm(start_node, original_matrix, graph):
+    # Reduce the original matrix.
+    initial_cost, cost_matrix = calculate_cost(original_matrix)
 
     priority_queue = PriorityQueue()
     parent_node = graph.nodes[start_node]
     closed_list = []
     final_list = []
+    visual_list = []
 
-    priority_queue.push(parent_node, initial_cost, cost_matrix)
+    priority_queue.push_with_matrix(parent_node, initial_cost, cost_matrix)
 
     while not priority_queue.isEmpty():
-        def heuristic_tut():
-            parent, cost, parent_matrix = priority_queue.pop()
+        parent, cost, parent_matrix = priority_queue.pop_with_matrix()
 
-            if closed_list == len(graph.nodes) - 1:  # This never gets called. :(
-                parent.traveling_salesman_path = parent_node
-                # print_path(parent_node)
-                return
+        if closed_list == len(graph.nodes) - 1:  # This never gets called. :(
+            parent.traveling_salesman_path = parent_node
+            # print_path(parent_node)
+            return
 
-            print(parent.id, cost)
+        print(parent.id, cost)
 
-            for sub_node in parent.connections:
+        for sub_node in parent.connections:
+            # print(sub_node.id)
+            # Set initial cost to that of the parent cost.
+            total_cost = cost
+            parent_matrix_copy = copy.deepcopy(parent_matrix)
+
+            if sub_node not in closed_list:
+                # Add the cost of the edge to the total_cost. The edge cost must be retrieved from the starting node
+                # reduced cost matrix (cost_matrix).
+                edge_cost = cost_matrix[parent.id, sub_node.id]
+                total_cost += edge_cost - sub_node.importance
+
+                # Add the cost of the lower bound starting at the sub_node. This means that we need to add the
+                # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
+                # cost. NOTE: This must be done on the current parent reduced matrix.
+                parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
+                # print(parent_matrix_copy_explored)
+                cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
+                total_cost += cost_for_step
+
+                sub_node.cost = total_cost
+
+                priority_queue.push_with_matrix(sub_node, sub_node.cost, parent_matrix_copy_explored)
+
+                # testing(costs_list=[cost, edge_cost, cost_for_step, total_cost])
+                print("    ", sub_node.id, sub_node.cost)
+
+        print("------------------------")
+        closed_list.append(parent)
+        visual_list.append([parent.id, cost])
+        # print(final_list, visual_list)
+
+    matrix_insert = 0
+    for item in closed_list:
+        if len(closed_list) - len(final_list) < len(closed_list):
+            visual_list[matrix_insert].insert(1, item.id)
+            matrix_insert += 1
+
+        final_list.append(item.id)
+
+        if len(closed_list) - len(final_list) == 0:
+            visual_list[matrix_insert].insert(1, visual_list[matrix_insert][0])
+
+    # print(final_list, visual_list)
+    return final_list, visual_list
+
+
+def g_g_algorithm(start_node, original_matrix, graph):
+    pass
+
+
+def prims_algorithm(start_node, original_matrix, graph):
+    # Make a copy of the original matrix, this is needed for the Prims algorithm.
+    original_matrix_copy = copy.deepcopy(original_matrix)
+
+    # Reduce the original matrix.
+    initial_cost, cost_matrix = calculate_cost(original_matrix)
+
+    priority_queue = PriorityQueue()
+    parent_node = graph.nodes[start_node]
+    closed_list = []
+    final_list = []
+    visual_list = []
+
+    priority_queue.push_with_matrix(parent_node, initial_cost, cost_matrix)
+
+    # A Python program for Prim's Minimum Spanning Tree (MST) algorithm.
+    # The program is for adjacency matrix representation of the graph
+
+    class Graph():
+
+        def __init__(self, vertices):
+            self.V = vertices
+            self.graph = [[0 for column in range(vertices)]
+                          for row in range(vertices)]
+
+        # A utility function to print the constructed MST stored in parent[]
+        def printMST(self, parent):
+            print("Edge \tWeight")
+            for i in range(1, self.V):
+                print(parent[i], "-", i, "\t", self.graph[i][parent[i]])
+                visual_list.append([parent[i], i, self.graph[i][parent[i]]])
+
+        # A utility function to find the vertex with minimum distance value, from the set of vertices
+        # not yet included in shortest path tree
+        def minKey(self, key, mstSet):
+            # Initialize min value
+            min = float("inf")
+            min_index = 0
+
+            for v in range(self.V):
+                if key[v] < min and mstSet[v] == False:
+                    min = key[v]
+                    min_index = v
+
+            return min_index
+
+        # Function to construct and print MST for a graph represented using adjacency matrix representation
+        def primMST(self):
+            # Key values used to pick minimum weight edge in cut
+            key = [float("inf")] * self.V
+
+            parent = [None] * self.V  # Array to store constructed MST
+            # Make key 0 so that this vertex is picked as first vertex
+            key[0] = start_node
+            mstSet = [False] * self.V
+
+            parent[0] = -1  # First node is always the root of
+
+            for cout in range(self.V):
+                """print("\nParent: ", parent)
+                print("Keys: ", key)
+                print("mstSet: ", mstSet)"""
+                # Pick the minimum distance vertex from the set of vertices not yet processed.
+                # u is always equal to src in first iteration
+                u = self.minKey(key, mstSet)
+
+                # Put the minimum distance vertex in
+                # the shortest path tree
+                mstSet[u] = True
+
+                # Update dist value of the adjacent vertices of the picked vertex only if the current
+                # distance is greater than new distance and the vertex in not in the shotest path tree
+                for v in range(self.V):
+
+                    # graph[u][v] is non zero only for adjacent vertices of m
+                    # mstSet[v] is false for vertices not yet included in MST
+                    # Update the key only if graph[u][v] is smaller than key[v]
+                    if 0 < self.graph[u][v] < key[v] and mstSet[v] == False:
+                        key[v] = self.graph[u][v]
+                        # print(u, v, self.graph[u][v])
+                        parent[v] = u
+
+            self.printMST(parent)
+
+    g = Graph(len(original_matrix_copy[0]))
+    g.graph = original_matrix_copy
+
+    g.primMST()
+
+    print("Prims algorithm doesn't work in the typically sense. So, the comparison to the ideal path won't be "
+          "successful.")
+    return visual_list, visual_list
+
+
+def space_state_algorithm(start_node, original_matrix, graph):
+    original_matrix_copy = copy.deepcopy(original_matrix)
+
+    # Reduce the original matrix.
+    initial_cost, cost_matrix = calculate_cost(original_matrix_copy)
+
+    priority_queue = PriorityQueue()
+    parent_node = graph.nodes[start_node]
+    closed_list = []
+    visual_list = []
+    final_list = []
+
+    root = Solid_State_Node(None, 0, parent_node, 0, cost_matrix, initial_cost)
+    solid_state_tree = Solid_State_Tree(root)
+
+    priority_queue.push_wo_matrix(root, initial_cost)
+
+    i = 1
+    num_of_backtracks = 0
+
+    while not priority_queue.isEmpty():
+
+        parent_state, cost = priority_queue.pop_wo_matrix()
+        # print(parent_state)
+
+        parent = parent_state.node
+        parent_matrix = parent_state.reduced_matrix
+
+        # print("PARENT LEVEL: " , parent_state.level)
+
+        if parent_state.level >= graph.size() - 1 + num_of_backtracks:
+            # print(len(cost_matrix[0]))
+            parent = parent_state
+            return_val = []
+
+            while parent is not None:
+                return_val.append(parent.node.id)
+                parent = parent.parent_node
+
+            return_val.reverse()
+            break
+
+        sub_node_remove = False
+
+        if len(parent.connections) == 1:
+            sub_node_remove = True
+            num_of_backtracks += 1
+
+        for sub_node in parent.connections:
+            if sub_node not in parent_state.closedList or len(parent.connections) == 1 or (
+                    len(parent.connections) == 2 and all(
+                houses in parent.connections for houses in parent_state.closedList)):
                 # print(sub_node.id)
                 # Set initial cost to that of the parent cost.
                 total_cost = cost
                 parent_matrix_copy = copy.deepcopy(parent_matrix)
 
-                if sub_node not in closed_list:
-                    # Add the cost of the edge to the total_cost. The edge cost must be retrieved from the starting node
-                    # reduced cost matrix (cost_matrix).
-                    edge_cost = cost_matrix[parent.id, sub_node.id]
-                    total_cost += edge_cost - sub_node.importance
+                # Add the cost of the edge to the total_cost. The edge cost must be retrieved from the starting node
+                # reduced cost matrix (cost_matrix).
+                edge_cost = cost_matrix[parent.id, sub_node.id]
+                total_cost += edge_cost
 
-                    # Add the cost of the lower bound starting at the sub_node. This means that we need to add the
-                    # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
-                    # cost. NOTE: This must be done on the current parent reduced matrix.
-                    parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
-                    # print(parent_matrix_copy_explored)
-                    cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
-                    total_cost += cost_for_step
+                # Add the cost of the lower bound starting at the sub_node. This means that we need to add the
+                # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
+                # cost. NOTE: This must be done on the current parent reduced matrix.
+                parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
+                # print(parent_matrix_copy_explored)
+                cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
+                total_cost += cost_for_step
 
-                    sub_node.cost = total_cost
+                sub_node.cost = total_cost
 
-                    priority_queue.push(sub_node, sub_node.cost, parent_matrix_copy_explored)
+                state_node = Solid_State_Node(parent_state, i, sub_node, parent_state.level + 1,
+                                              parent_matrix_copy_explored, total_cost)
+                i += 1
 
-                    # testing(costs_list=[cost, edge_cost, cost_for_step, total_cost])
-                    print("    ", sub_node.id, sub_node.cost)
-            return parent
+                # print(parent_state.level)
 
-        def heuristic_g_g():
-            all_lower = []
-            pass
+                priority_queue.push_wo_matrix(state_node, cost)
 
-        def heuristic_prims():
-            # A Python program for Prim's Minimum Spanning Tree (MST) algorithm.
-            # The program is for adjacency matrix representation of the graph
+                # testing(costs_list=[cost, edge_cost, cost_for_step, total_cost])
+                # print("    ", sub_node.id, sub_node.cost)
+            # print(cost)
+        # print("------------------------")
+        closed_list.append(parent)
+        # search_solid_state_tree(solid_state_tree.root)
 
-            class Graph():
+    if len(return_val) > 0:
+        parent_index = 0
 
-                def __init__(self, vertices):
-                    self.V = vertices
-                    self.graph = [[0 for column in range(vertices)]
-                                  for row in range(vertices)]
+        for item in return_val:
+            final_list.append(item)
 
-                # A utility function to print the constructed MST stored in parent[]
-                def printMST(self, parent):
-                    print("Edge \tWeight")
-                    for i in range(1, self.V):
-                        print(parent[i], "-", i, "\t", self.graph[i][parent[i]])
-                        closed_list.append([parent[i], i, self.graph[i][parent[i]]])
+            if len(final_list) >= 2:
+                visual_list.append([final_list[parent_index], item, original_matrix[final_list[parent_index]][item]])
+                parent_index += 1
 
-                # A utility function to find the vertex with minimum distance value, from the set of vertices
-                # not yet included in shortest path tree
-                def minKey(self, key, mstSet):
-                    # Initialize min value
-                    min = float("inf")
-                    min_index = 0
+    else:
+        matrix_insert = 0
+        for item in closed_list:
+            if len(closed_list) - len(final_list) < len(closed_list):
+                visual_list[matrix_insert].insert(1, item.id)
+                matrix_insert += 1
 
-                    for v in range(self.V):
-                        if key[v] < min and mstSet[v] == False:
-                            min = key[v]
-                            min_index = v
+            final_list.append(item.id)
 
-                    return min_index
+            if len(closed_list) - len(final_list) == 0:
+                visual_list[matrix_insert].insert(1, visual_list[matrix_insert][0])
 
-                # Function to construct and print MST for a graph represented using adjacency matrix representation
-                def primMST(self):
-                    # Key values used to pick minimum weight edge in cut
-                    key = [float("inf")] * self.V
-
-                    parent = [None] * self.V  # Array to store constructed MST
-                    # Make key 0 so that this vertex is picked as first vertex
-                    key[0] = start_node
-                    mstSet = [False] * self.V
-
-                    parent[0] = -1  # First node is always the root of
-
-                    for cout in range(self.V):
-                        """print("\nParent: ", parent)
-                        print("Keys: ", key)
-                        print("mstSet: ", mstSet)"""
-                        # Pick the minimum distance vertex from the set of vertices not yet processed.
-                        # u is always equal to src in first iteration
-                        u = self.minKey(key, mstSet)
-
-                        # Put the minimum distance vertex in
-                        # the shortest path tree
-                        mstSet[u] = True
-
-                        # Update dist value of the adjacent vertices of the picked vertex only if the current
-                        # distance is greater than new distance and the vertex in not in the shotest path tree
-                        for v in range(self.V):
-
-                            # graph[u][v] is non zero only for adjacent vertices of m
-                            # mstSet[v] is false for vertices not yet included in MST
-                            # Update the key only if graph[u][v] is smaller than key[v]
-                            if 0 < self.graph[u][v] < key[v] and mstSet[v] == False:
-                                key[v] = self.graph[u][v]
-                                # print(u, v, self.graph[u][v])
-                                parent[v] = u
-
-                    self.printMST(parent)
-
-            g = Graph(len(original_matrix[0]))
-            g.graph = original_matrix
-
-            g.primMST()
-
-        if HEUR == 1:
-            parent = heuristic_tut()
-            print("------------------------")
-            closed_list.append(parent)
-
-        elif HEUR == 2:
-            parent = heuristic_g_g()
-            print("------------------------")
-            closed_list.append(parent)
-
-        elif HEUR == 3:
-            print("Start Node: ", start_node)
-            heuristic_prims()
-            return closed_list
-            break
-
-    for item in closed_list:
-        final_list.append(item.id)
-    return final_list
+    return final_list, visual_list
 
 
 def testing(data_frame=None, graph=None, matrix=None, costs_list=[]):
@@ -500,7 +689,7 @@ def sample_data(sample_matrix_number):
     return testing_data, data_check
 
 
-def visualization(graph_data = None, path = None):
+def visualization(graph_data=None, path=None):
     if graph_data != None:
         plt.figure(1)
         G = nx.Graph()
@@ -523,7 +712,6 @@ def visualization(graph_data = None, path = None):
         nx.draw(G, pos, with_labels=True)
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
         # plt.savefig("simple_path.png")  # save as png
-
 
     if path != None:
         plt.figure(2)
@@ -559,52 +747,63 @@ def visualization(graph_data = None, path = None):
     plt.show()
 
 
-
 def main():
+    # General Parameters
+    ALGORITHM = 4
+    TESTING = False
+    VISUALIZATION = True
+
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 1
-        data, data_checker = sample_data(sample_number)
+        sample_number = 4
+        data, ideal_route = sample_data(sample_number)
 
         graphical_data = Graph(data)
         matrix_data = graphical_data.convert_to_matrix()
 
-        """if sample_number == 3:
+        # For sample 3, as the bidirectional weights are unequal, force the matrix to be the following
+        if sample_number == 3:
             matrix_data = [[math.inf, 20, 30, 10, 11],
                            [15, math.inf, 16, 4, 2],
                            [3, 5, math.inf, 2, 4],
                            [19, 6, 18, math.inf, 3],
                            [16, 4, 7, 16, math.inf]]
-            matrix_data = np.array(matrix_data)"""
+            matrix_data = np.array(matrix_data)
 
-    # If we are using the dummy data set:
+    # If we are using the dummy data set, do the following.
     else:
         data = preprocessing(ROUTE_DATA)
 
         graphical_data = Graph(data)
         matrix_data = graphical_data.convert_to_matrix()
 
-    # testing(matrix=matrix_data)
-    # testing(graph=graphical_data)
-    # testing(data_frame=data, graph=graphical_data, matrix=matrix_data)
-    final_path = branch_and_bound(0, matrix_data, graphical_data)
+    # Determine the algorithmic route.
+    if ALGORITHM == 1:
+        final_path, visual_path = tutorial_algorithm(0, matrix_data, graphical_data)
+    elif ALGORITHM == 2:
+        final_path, visual_path = g_g_algorithm(0, matrix_data, graphical_data)
+    elif ALGORITHM == 3:
+        final_path, visual_path = prims_algorithm(0, matrix_data, graphical_data)
+    else:
+        final_path, visual_path = space_state_algorithm(0, matrix_data, graphical_data)
 
     if TESTING:
-        if final_path == data_checker:
+        if final_path == ideal_route:
             print("\nSuccess. The final path is equal to that of the brute force path.")
-            print("    Desired Outcome: ", data_checker)
+            print("    Desired Outcome: ", ideal_route)
             print("    Received Outcome: ", final_path)
         else:
             print("\nFailure. The final path is not equal to the of the brute force path.")
-            print("    Desired Outcome: ", data_checker)
+            print("    Desired Outcome: ", ideal_route)
             print("    Received Outcome: ", final_path)
     else:
-        print(final_path)
+        print("Received Outcome: ", final_path)
 
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
-    visualization(graph_data=graphical_data, path=final_path)
+    if VISUALIZATION:
+        visualization(graph_data=graphical_data, path=visual_path)
 
 
 if __name__ == "__main__":
