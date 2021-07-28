@@ -154,6 +154,12 @@ class PriorityQueue():
                 return True
         return False
 
+    def peek(self):
+        node = min(self.queue, key=attrgetter('cost'))
+        cost = self.queue[node]
+        return node, cost
+        
+
     def pop(self):
         node = min(self.queue, key=attrgetter('cost'))
         cost = self.queue[node]
@@ -291,7 +297,10 @@ def branch_and_bound(start_node, original_matrix, graph):
         if parent_state.level >= graph.size() - 1 + num_of_backtracks:
             print(len(cost_matrix[0]))
             parent = parent_state
-            return_val = []
+
+            if root in parent.connections:
+                return_val = []
+                calculate_cost 
 
             while parent != None:
                 return_val.append(parent.node.id)
