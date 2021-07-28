@@ -30,7 +30,7 @@ ROUTES = gpd.read_file(DATA_PATH)
 ROUTE_DATA = pd.DataFrame(ROUTES)
 
 # General Parameters
-TESTING = True
+TESTING = False
 
 # Get the start time.
 START_TIME = time.time()
@@ -224,8 +224,11 @@ def print_path(root):
 
 
 def branch_and_bound(start_node, original_matrix, graph):
+    original_matrix_copy = copy.deepcopy(original_matrix)
     # Reduce the original matrix.
-    initial_cost, cost_matrix = calculate_cost(original_matrix)
+    initial_cost, cost_matrix = calculate_cost(original_matrix_copy)
+
+    HEUR = 3
 
     priority_queue = PriorityQueue()
     parent_node = graph.nodes[start_node]
@@ -235,44 +238,138 @@ def branch_and_bound(start_node, original_matrix, graph):
     priority_queue.push(parent_node, initial_cost, cost_matrix)
 
     while not priority_queue.isEmpty():
-        parent, cost, parent_matrix = priority_queue.pop()
+        def heuristic_tut():
+            parent, cost, parent_matrix = priority_queue.pop()
 
-        if closed_list == len(graph.nodes) - 1:  # This never gets called. :(
-            parent.traveling_salesman_path = parent_node
-            print_path(parent_node)
-            return
+            if closed_list == len(graph.nodes) - 1:  # This never gets called. :(
+                parent.traveling_salesman_path = parent_node
+                # print_path(parent_node)
+                return
 
-        print(parent.id, cost)
+            print(parent.id, cost)
 
-        for sub_node in parent.connections:
-            print(sub_node.id)
-            # Set initial cost to that of the parent cost.
-            total_cost = cost
-            parent_matrix_copy = copy.deepcopy(parent_matrix)
+            for sub_node in parent.connections:
+                # print(sub_node.id)
+                # Set initial cost to that of the parent cost.
+                total_cost = cost
+                parent_matrix_copy = copy.deepcopy(parent_matrix)
 
-            if sub_node not in closed_list:
-                # Add the cost of the edge to the total_cost. The edge cost must be retrieved from the starting node
-                # reduced cost matrix (cost_matrix).
-                edge_cost = cost_matrix[parent.id, sub_node.id]
-                total_cost += edge_cost
+                if sub_node not in closed_list:
+                    # Add the cost of the edge to the total_cost. The edge cost must be retrieved from the starting node
+                    # reduced cost matrix (cost_matrix).
+                    edge_cost = cost_matrix[parent.id, sub_node.id]
+                    total_cost += edge_cost - sub_node.importance
 
-                # Add the cost of the lower bound starting at the sub_node. This means that we need to add the
-                # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
-                # cost. NOTE: This must be done on the current parent reduced matrix.
-                parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
-                # print(parent_matrix_copy_explored)
-                cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
-                total_cost += cost_for_step
+                    # Add the cost of the lower bound starting at the sub_node. This means that we need to add the
+                    # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
+                    # cost. NOTE: This must be done on the current parent reduced matrix.
+                    parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
+                    # print(parent_matrix_copy_explored)
+                    cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
+                    total_cost += cost_for_step
 
-                sub_node.cost = total_cost
+                    sub_node.cost = total_cost
 
-                priority_queue.push(sub_node, sub_node.cost, parent_matrix_copy_explored)
+                    priority_queue.push(sub_node, sub_node.cost, parent_matrix_copy_explored)
 
-                # testing(costs_list=[cost, edge_cost, cost_for_step, total_cost])
-                # print("    ", sub_node.id, sub_node.cost)
+                    # testing(costs_list=[cost, edge_cost, cost_for_step, total_cost])
+                    print("    ", sub_node.id, sub_node.cost)
+            return parent
 
-        print("------------------------")
-        closed_list.append(parent)
+        def heuristic_g_g():
+            all_lower = []
+            pass
+
+        def heuristic_prims():
+            # A Python program for Prim's Minimum Spanning Tree (MST) algorithm.
+            # The program is for adjacency matrix representation of the graph
+
+            class Graph():
+
+                def __init__(self, vertices):
+                    self.V = vertices
+                    self.graph = [[0 for column in range(vertices)]
+                                  for row in range(vertices)]
+
+                # A utility function to print the constructed MST stored in parent[]
+                def printMST(self, parent):
+                    print("Edge \tWeight")
+                    for i in range(1, self.V):
+                        print(parent[i], "-", i, "\t", self.graph[i][parent[i]])
+                        closed_list.append([parent[i], i, self.graph[i][parent[i]]])
+
+                # A utility function to find the vertex with minimum distance value, from the set of vertices
+                # not yet included in shortest path tree
+                def minKey(self, key, mstSet):
+                    # Initialize min value
+                    min = float("inf")
+                    min_index = 0
+
+                    for v in range(self.V):
+                        if key[v] < min and mstSet[v] == False:
+                            min = key[v]
+                            min_index = v
+
+                    return min_index
+
+                # Function to construct and print MST for a graph represented using adjacency matrix representation
+                def primMST(self):
+                    # Key values used to pick minimum weight edge in cut
+                    key = [float("inf")] * self.V
+
+                    parent = [None] * self.V  # Array to store constructed MST
+                    # Make key 0 so that this vertex is picked as first vertex
+                    key[0] = start_node
+                    mstSet = [False] * self.V
+
+                    parent[0] = -1  # First node is always the root of
+
+                    for cout in range(self.V):
+                        """print("\nParent: ", parent)
+                        print("Keys: ", key)
+                        print("mstSet: ", mstSet)"""
+                        # Pick the minimum distance vertex from the set of vertices not yet processed.
+                        # u is always equal to src in first iteration
+                        u = self.minKey(key, mstSet)
+
+                        # Put the minimum distance vertex in
+                        # the shortest path tree
+                        mstSet[u] = True
+
+                        # Update dist value of the adjacent vertices of the picked vertex only if the current
+                        # distance is greater than new distance and the vertex in not in the shotest path tree
+                        for v in range(self.V):
+
+                            # graph[u][v] is non zero only for adjacent vertices of m
+                            # mstSet[v] is false for vertices not yet included in MST
+                            # Update the key only if graph[u][v] is smaller than key[v]
+                            if 0 < self.graph[u][v] < key[v] and mstSet[v] == False:
+                                key[v] = self.graph[u][v]
+                                # print(u, v, self.graph[u][v])
+                                parent[v] = u
+
+                    self.printMST(parent)
+
+            g = Graph(len(original_matrix[0]))
+            g.graph = original_matrix
+
+            g.primMST()
+
+        if HEUR == 1:
+            parent = heuristic_tut()
+            print("------------------------")
+            closed_list.append(parent)
+
+        elif HEUR == 2:
+            parent = heuristic_g_g()
+            print("------------------------")
+            closed_list.append(parent)
+
+        elif HEUR == 3:
+            print("Start Node: ", start_node)
+            heuristic_prims()
+            return closed_list
+            break
 
     for item in closed_list:
         final_list.append(item.id)
@@ -402,46 +499,83 @@ def sample_data(sample_matrix_number):
 
     return testing_data, data_check
 
-def visualization(graph_data):
-    G = nx.Graph()
 
-    node_list = []
-    edge_list = []
-    edge_labels_dict = {}
+def visualization(graph_data = None, path = None):
+    if graph_data != None:
+        plt.figure(1)
+        G = nx.Graph()
 
-    for node in graph_data.nodes:
-        node_list.append(node.id)
-        for connections in node.connections:
-            edge_list.append([node.id, connections.id])
-            edge_labels_dict[(node.id, connections.id)] = node.connections[connections]
+        node_list = []
+        edge_list = []
+        edge_labels_dict = {}
 
-    G.add_nodes_from(node_list)
-    G.add_edges_from(edge_list)
+        for node in graph_data.nodes:
+            node_list.append(node.id)
+            for connections in node.connections:
+                edge_list.append([node.id, connections.id])
+                edge_labels_dict[(node.id, connections.id)] = node.connections[connections]
 
-    pos = nx.spring_layout(G)
+        G.add_nodes_from(node_list)
+        G.add_edges_from(edge_list)
 
-    nx.draw(G, pos, with_labels = True)
-    nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
-    # plt.savefig("simple_path.png")  # save as png
+        pos = nx.spring_layout(G)
+
+        nx.draw(G, pos, with_labels=True)
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
+        # plt.savefig("simple_path.png")  # save as png
+
+
+    if path != None:
+        plt.figure(2)
+        H = nx.Graph()
+
+        node_list = []
+        edge_list = []
+        edge_labels_dict = {}
+
+        for row in path:
+            parent_node = row[0]
+            sub_node = row[1]
+            edge_weight = row[2]
+
+            node_list.append(parent_node)
+            edge_list.append([parent_node, sub_node])
+
+            edge_labels_dict[(parent_node, sub_node)] = edge_weight
+
+        print(node_list)
+        print(edge_list)
+        print(edge_labels_dict)
+
+        H.add_nodes_from(node_list)
+        H.add_edges_from(edge_list)
+
+        pos = nx.spring_layout(H)
+
+        nx.draw(H, pos, with_labels=True)
+        nx.draw_networkx_edge_labels(H, pos, edge_labels=edge_labels_dict)
+        # plt.savefig("simple_path.png")  # save as png
+
     plt.show()
+
 
 
 def main():
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 4
+        sample_number = 1
         data, data_checker = sample_data(sample_number)
 
         graphical_data = Graph(data)
         matrix_data = graphical_data.convert_to_matrix()
 
-        if sample_number == 3:
+        """if sample_number == 3:
             matrix_data = [[math.inf, 20, 30, 10, 11],
                            [15, math.inf, 16, 4, 2],
                            [3, 5, math.inf, 2, 4],
                            [19, 6, 18, math.inf, 3],
                            [16, 4, 7, 16, math.inf]]
-            matrix_data = np.array(matrix_data)
+            matrix_data = np.array(matrix_data)"""
 
     # If we are using the dummy data set:
     else:
@@ -451,7 +585,7 @@ def main():
         matrix_data = graphical_data.convert_to_matrix()
 
     # testing(matrix=matrix_data)
-    testing(graph=graphical_data)
+    # testing(graph=graphical_data)
     # testing(data_frame=data, graph=graphical_data, matrix=matrix_data)
     final_path = branch_and_bound(0, matrix_data, graphical_data)
 
@@ -470,7 +604,8 @@ def main():
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
-    visualization(graphical_data)
+    visualization(graph_data=graphical_data, path=final_path)
+
 
 if __name__ == "__main__":
     main()
