@@ -398,7 +398,7 @@ def all_node_search():
                 total_cost = initial_cost
                 # cost_matrix_copy = copy.deepcopy(cost_matrix)
                 if sub_node not in closed_list:
-                    print(copy_copy[sub_node.id, parent.id])
+                    print(cost_matrix_copy[sub_node.id, parent.id])
                     total_cost += cost_matrix[sub_node.id, parent.id]
                     # print("   Node", sub_node.id, "Cost", total_cost)
                     # print("\n")

@@ -24,7 +24,7 @@ import time
 
 # Get script and dataset file paths.
 SCRIPT_PATH = os.path.dirname(__file__)
-DATA_PATH = os.path.join(SCRIPT_PATH, "DummyData.shp")
+DATA_PATH = os.path.join(SCRIPT_PATH, "fake_dummy_data/DummyData.shp")
 # Read the .shp file via geopanadas and store as a pandas dataframe.
 ROUTES = gpd.read_file(DATA_PATH)
 ROUTE_DATA = pd.DataFrame(ROUTES)
@@ -33,7 +33,7 @@ ROUTE_DATA = pd.DataFrame(ROUTES)
 START_TIME = time.time()
 
 
-# TODO: Incorporate multi vist modifications for the importance factor
+# TODO: Incorporate multi-vist modifications for the importance factor
 def preprocessing(unprocessed_raw_data):
     """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
     version of the original data from the .shp file. """
@@ -142,7 +142,7 @@ class PriorityQueue:
     def isEmpty(self):
         return len(self.queue) == 0
 
-    def push_with_matrix(self, node, priority, matrix=[]):
+    def push_with_matrix(self, node, priority, matrix):
         self.queue[node] = [priority, matrix]
 
     def push_wo_matrix(self, node, priority):
@@ -169,7 +169,7 @@ class PriorityQueue:
         return node, cost
 
 
-class Solid_State_Node():
+class SolidStateNode():
 
     def __init__(self, parent_node, node_id, node, level, reduced_matrix, cost):
         self.node = node
@@ -190,13 +190,56 @@ class Solid_State_Node():
         self.children.append(child)
 
 
-class Solid_State_Tree():
+class SolidStateTree():
 
     def __init__(self, root):
         self.root = root
 
 
 # Following are the functions.
+# TODO: Refactor the following code / make sure it works properly.
+# TODO: Incorporate the house task importance into the heuristic function.
+def heuristic(start_node, end_node):
+    """This function returns the shortest euclidean distance between two nodes. NOTE: This currently only works for
+    2D data."""
+
+    # TODO: Update the current function to incorporate a third dimension (elevation) when attempting to find the
+    #  shortest euclidean distance between two nodes.
+
+    start_node_x = start_node.lat
+    start_node_y = start_node.longt
+
+    end_node_x = end_node.lat
+    end_node_y = end_node.longt
+
+    diff_x = (start_node_x - end_node_x) ** 2
+    diff_y = (start_node_y - end_node_y) ** 2
+
+    shortest_possible_distance = np.sqrt(diff_x + diff_y)
+
+    return shortest_possible_distance
+
+
+def time_per_long_lat(connection_testing):
+    """Based on the data, determine the amount of time needed to move one unit of latitude/longitude."""
+
+    # From the connection_testing parameter, retrieve the graph data.
+    graph = connection_testing[1]
+
+    dist = 0
+    count = 0
+    route_time = 0
+    # Iterate through all of the nodes, and for every node, iterate through the connections. For each of the
+    # start-end node pairs, sum all of the collective distances and times.
+    for node in graph.nodes:
+        for connection in node.connections:
+            dist += heuristic(node, connection)
+            route_time += node.connections[connection]
+            count += 1
+
+    print("\nAverage Time Per Distance: ", route_time / dist)
+
+
 def calculate_cost(matrix):
     """Calculates the reduction cost of the matrix. Returns the adjacency matrix (reduced matrix) and the associated
     cost. """
@@ -246,6 +289,62 @@ def calculate_cost(matrix):
             cost += min_col[index]
 
     return cost, matrix
+
+# TODO: Refactor the following code / make sure it works properly.
+def node_to_node_search(start_node, goal):
+    open_list = [start_node]
+    closed_list = []
+    final_route = []
+
+    start_node.f = 0
+    start_node.g = 0
+    tree_dict = {start_node: 0}
+
+    while len(open_list) != 0:
+        current_node = open_list[0]
+
+        # Set the new node to be the previous sub_node with the lowest f(x).
+        if current_node != start_node:
+            current_node = min(open_list, key=attrgetter('f'))
+
+        #
+        level = tree_dict[current_node]
+        open_list.remove(current_node)
+
+        if level == len(final_route):
+            final_route.append(current_node)
+        else:
+            final_route[level] = current_node
+
+        # Add the current node to the checked list
+        closed_list.append(current_node)
+
+        # Check if the goal node has been reached
+        if current_node == goal:
+            return final_route
+
+        # For the current_node, go through all of its connections, and determine their f(x) as a sum of their h(x)
+        # and g(x).
+        for sub_node in current_node.connections:
+            if sub_node in closed_list:
+                continue
+            found = False
+            for key, value in tree_dict.items():
+                if key == sub_node:
+                    found = True
+            if not found:
+                tree_dict[sub_node] = level + 1
+
+            sub_node.g = current_node.connections[sub_node] + current_node.g
+            sub_node.h = heuristic(sub_node, goal) * 4146.282847732093
+            sub_node.f = sub_node.g + sub_node.h
+
+            open_list.append(sub_node)
+
+        print("Current Node:", current_node.id, current_node.f)
+        for sub_node in open_list:
+            print("    Sub-Nodes Data:", sub_node.id, sub_node.f, sub_node.importance)
+        print("\n")
 
 
 def explore_edge(start_node, node_from, node_to, matrix):
@@ -356,7 +455,7 @@ def tutorial_algorithm(start_node, original_matrix, graph):
 
 
 def g_g_algorithm(start_node, original_matrix, graph):
-    pass
+    return [], []
 
 
 def prims_algorithm(start_node, original_matrix, graph):
@@ -377,12 +476,12 @@ def prims_algorithm(start_node, original_matrix, graph):
     # A Python program for Prim's Minimum Spanning Tree (MST) algorithm.
     # The program is for adjacency matrix representation of the graph
 
-    class Graph():
+    class PrimsGraph():
 
         def __init__(self, vertices):
             self.V = vertices
-            self.graph = [[0 for column in range(vertices)]
-                          for row in range(vertices)]
+            self.graph = [[0 for _ in range(vertices)]
+                          for _ in range(vertices)]
 
         # A utility function to print the constructed MST stored in parent[]
         def printMST(self, parent):
@@ -395,12 +494,12 @@ def prims_algorithm(start_node, original_matrix, graph):
         # not yet included in shortest path tree
         def minKey(self, key, mstSet):
             # Initialize min value
-            min = float("inf")
+            minimum = float("inf")
             min_index = 0
 
             for v in range(self.V):
-                if key[v] < min and mstSet[v] == False:
-                    min = key[v]
+                if key[v] < minimum and mstSet[v] == False:
+                    minimum = key[v]
                     min_index = v
 
             return min_index
@@ -443,7 +542,7 @@ def prims_algorithm(start_node, original_matrix, graph):
 
             self.printMST(parent)
 
-    g = Graph(len(original_matrix_copy[0]))
+    g = PrimsGraph(len(original_matrix_copy[0]))
     g.graph = original_matrix_copy
 
     g.primMST()
@@ -464,6 +563,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
     closed_list = []
     visual_list = []
     final_list = []
+    return_val = []
 
     root = Solid_State_Node(None, 0, parent_node, 0, cost_matrix, initial_cost)
     solid_state_tree = Solid_State_Tree(root)
@@ -503,8 +603,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
         for sub_node in parent.connections:
             if sub_node not in parent_state.closedList or len(parent.connections) == 1 or (
-                    len(parent.connections) == 2 and all(
-                houses in parent.connections for houses in parent_state.closedList)):
+                    len(parent.connections) == 2 and
+                    all(houses in parent.connections for houses in parent_state.closedList)):
                 # print(sub_node.id)
                 # Set initial cost to that of the parent cost.
                 total_cost = cost
@@ -565,7 +665,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
     return final_list, visual_list
 
 
-def testing(data_frame=None, graph=None, matrix=None, costs_list=[]):
+def testing(data_frame=None, graph=None, matrix=None, costs_list=None):
     """Function to contain all of the testing functions. This is just to reduce space."""
 
     def view_data():
@@ -609,7 +709,7 @@ def testing(data_frame=None, graph=None, matrix=None, costs_list=[]):
         view_connections()
     if matrix is not None:
         view_cost_matrix()
-    if len(costs_list) != 0:
+    if graph_data is not None:
         costs()
 
 
@@ -690,7 +790,7 @@ def sample_data(sample_matrix_number):
 
 
 def visualization(graph_data=None, path=None):
-    if graph_data != None:
+    if graph_data is not None:
         plt.figure(1)
         G = nx.Graph()
 
@@ -709,11 +809,11 @@ def visualization(graph_data=None, path=None):
 
         pos = nx.spring_layout(G)
 
-        nx.draw(G, pos, with_labels=True)
+        nx.draw(G, pos, with_labels=True, connectionstyle="arc3,rad=0.1")
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
         # plt.savefig("simple_path.png")  # save as png
 
-    if path != None:
+    if path is not None:
         plt.figure(2)
         H = nx.Graph()
 
@@ -740,7 +840,7 @@ def visualization(graph_data=None, path=None):
 
         pos = nx.spring_layout(H)
 
-        nx.draw(H, pos, with_labels=True)
+        nx.draw(H, pos, with_labels=True, connectionstyle="arc3,rad=0.1")
         nx.draw_networkx_edge_labels(H, pos, edge_labels=edge_labels_dict)
         # plt.savefig("simple_path.png")  # save as png
 
@@ -752,6 +852,7 @@ def main():
     ALGORITHM = 4
     TESTING = False
     VISUALIZATION = True
+    ideal_route = []
 
     # If we want to test the code using our sample matrices.
     if TESTING:
