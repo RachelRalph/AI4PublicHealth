@@ -253,6 +253,7 @@ def calculate_cost(matrix):
 
     return cost, matrix
 
+
 # TODO: Refactor the following code / make sure it works properly.
 def node_to_node_search(start_node, goal):
     open_list = [start_node]
@@ -527,8 +528,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
     visual_list = []
     final_list = []
 
-    root = Solid_State_Node(None, 0, parent_node, 0, cost_matrix, initial_cost)
-    solid_state_tree = Solid_State_Tree(root)
+    root = SolidStateNode(None, 0, parent_node, 0, cost_matrix, initial_cost)
+    solid_state_tree = SolidStateTree(root)
 
     priority_queue.push_wo_matrix(root, initial_cost)
 
@@ -637,8 +638,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
                 sub_node.cost = total_cost
 
-                state_node = Solid_State_Node(parent_state, i, sub_node, parent_state.level + 1,
-                                              parent_matrix_copy_explored, total_cost)
+                state_node = SolidStateNode(parent_state, i, sub_node, parent_state.level + 1,
+                                            parent_matrix_copy_explored, total_cost)
                 i += 1
 
                 # print(parent_state.level)
