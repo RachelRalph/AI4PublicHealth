@@ -203,50 +203,6 @@ class SolidStateTree():
 
 # Following are the functions.
 # TODO: Refactor the following code / make sure it works properly.
-def heuristic(start_node, end_node):
-    """This function returns the shortest euclidean distance between two nodes. NOTE: This currently only works for
-    2D data."""
-
-    # TODO: Update the current function to incorporate a third dimension (elevation) when attempting to find the
-    #  shortest euclidean distance between two nodes.
-
-    start_node_x = start_node.lat
-    start_node_y = start_node.longt
-    start_node_z = start_node.elevation
-
-    end_node_x = end_node.lat
-    end_node_y = end_node.longt
-    end_node_z = start_node.elevation
-
-    diff_x = (start_node_x - end_node_x) ** 2
-    diff_y = (start_node_y - end_node_y) ** 2
-    diff_z = (start_node_z - end_node_z) ** 2
-
-    shortest_possible_distance = np.sqrt(diff_x + diff_y + diff_z)
-
-    return shortest_possible_distance
-
-
-def time_per_long_lat(connection_testing):
-    """Based on the data, determine the amount of time needed to move one unit of latitude/longitude."""
-
-    # From the connection_testing parameter, retrieve the graph data.
-    graph = connection_testing[1]
-
-    dist = 0
-    count = 0
-    route_time = 0
-    # Iterate through all of the nodes, and for every node, iterate through the connections. For each of the
-    # start-end node pairs, sum all of the collective distances and times.
-    for node in graph.nodes:
-        for connection in node.connections:
-            dist += heuristic(node, connection)
-            route_time += node.connections[connection]
-            count += 1
-
-    print("\nAverage Time Per Distance: ", route_time / dist)
-
-
 def calculate_cost(matrix):
     """Calculates the reduction cost of the matrix. Returns the adjacency matrix (reduced matrix) and the associated
     cost. """
