@@ -198,7 +198,6 @@ class SolidStateTree():
 
 # Following are the functions.
 # TODO: Refactor the following code / make sure it works properly.
-# TODO: Incorporate the house task importance into the heuristic function.
 def heuristic(start_node, end_node):
     """This function returns the shortest euclidean distance between two nodes. NOTE: This currently only works for
     2D data."""
@@ -208,14 +207,17 @@ def heuristic(start_node, end_node):
 
     start_node_x = start_node.lat
     start_node_y = start_node.longt
+    start_node_z = start_node.elevation
 
     end_node_x = end_node.lat
     end_node_y = end_node.longt
+    end_node_z = start_node.elevation
 
     diff_x = (start_node_x - end_node_x) ** 2
     diff_y = (start_node_y - end_node_y) ** 2
+    diff_z = (start_node_z - end_node_z) ** 2
 
-    shortest_possible_distance = np.sqrt(diff_x + diff_y)
+    shortest_possible_distance = np.sqrt(diff_x + diff_y + diff_z)
 
     return shortest_possible_distance
 
