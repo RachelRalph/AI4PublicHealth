@@ -162,6 +162,11 @@ class PriorityQueue:
         del self.queue[node]
         return node, cost, matrix
 
+    def peek(self):
+        node = min(self.queue, key=attrgetter('cost'))
+        cost = self.queue[node]
+        return node, cost
+
     def pop_wo_matrix(self):
         node = min(self.queue, key=attrgetter('cost'))
         cost = self.queue[node]
@@ -565,7 +570,6 @@ def space_state_algorithm(start_node, original_matrix, graph):
     closed_list = []
     visual_list = []
     final_list = []
-    return_val = []
 
     root = Solid_State_Node(None, 0, parent_node, 0, cost_matrix, initial_cost)
     solid_state_tree = Solid_State_Tree(root)
@@ -575,7 +579,13 @@ def space_state_algorithm(start_node, original_matrix, graph):
     i = 1
     num_of_backtracks = 0
 
+    lowest_branch_cost = math.inf
+    lowest_branch = []
+    return_val = []
+
     while not priority_queue.isEmpty():
+        search_solid_state_tree(root)
+        print("Hey! Checking priority queue...")
 
         parent_state, cost = priority_queue.pop_wo_matrix()
         # print(parent_state)
@@ -586,29 +596,73 @@ def space_state_algorithm(start_node, original_matrix, graph):
         # print("PARENT LEVEL: " , parent_state.level)
 
         if parent_state.level >= graph.size() - 1 + num_of_backtracks:
-            # print(len(cost_matrix[0]))
-            parent = parent_state
-            return_val = []
+            root_connection = False
+            for connection in parent.connections:
+                if connection.id == root.node.id:
+                    root_connection = True
 
-            while parent is not None:
-                return_val.append(parent.node.id)
-                parent = parent.parent_node
+            if not root_connection:
+                continue
+                print("Can't find the root!")
 
-            return_val.reverse()
+            print("Found root...")
+
+            parent_matrix_copy = copy.deepcopy(parent_matrix)
+
+            parent_copy_explored = explore_edge(parent.id, parent.id, root.node.id, copy.deepcopy(parent_matrix_copy))
+            cost_for_step, parent_copy_reduced = calculate_cost(parent_copy_explored)
+            branch_cost = cost_for_step
+            branch_cost += cost
+            branch_cost += cost_matrix[parent.id, root.node.id]
+
+            if not priority_queue.isEmpty():
+                next_node, next_node_cost = priority_queue.peek()
+
+                print(next_node_cost, branch_cost)
+
+                if branch_cost <= next_node_cost:
+                    while parent_state is not None:
+                        return_val.append(parent_state.node.id)
+                        parent_state = parent_state.parent_node
+
+                    return_val.reverse()
+                    return_val.append(0)
+                    break
+
+            if priority_queue.isEmpty():
+                return_val = lowest_branch
+            if lowest_branch_cost > branch_cost:
+                lowest_branch_cost = branch_cost
+                lowest_branch = []
+                lowest_state_node = parent_state
+                lowest_node = parent
+                while lowest_state_node is not None:
+                    lowest_branch.append(lowest_state_node.node.id)
+                    print(lowest_state_node.node.id)
+                    lowest_state_node = lowest_state_node.parent_node
+
+                lowest_branch.reverse()
+                lowest_branch.append(0)
+
+            print("Going to the top of the loop...")
+
+            continue
+
+        if cost > lowest_branch_cost:
+            return_val = lowest_branch
+            print("Found lowest cost")
             break
-
-        sub_node_remove = False
+        print("Going on down...")
 
         if len(parent.connections) == 1:
-            sub_node_remove = True
-            num_of_backtracks += 1
+            print("Backtracking...")
+            num_of_backtracks = 1
 
         for sub_node in parent.connections:
-            if sub_node not in parent_state.closedList or len(parent.connections) == 1 or (
-                    len(parent.connections) == 2 and
-                    all(houses in parent.connections for houses in parent_state.closedList)):
+            if sub_node not in parent_state.closedList or len(parent.connections) == 1:
                 # print(sub_node.id)
                 # Set initial cost to that of the parent cost.
+
                 total_cost = cost
                 parent_matrix_copy = copy.deepcopy(parent_matrix)
 
@@ -641,6 +695,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
         # print("------------------------")
         closed_list.append(parent)
         # search_solid_state_tree(solid_state_tree.root)
+        # print("Return val: ", return_val)
 
     if len(return_val) > 0:
         parent_index = 0
@@ -649,7 +704,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
             final_list.append(item)
 
             if len(final_list) >= 2:
-                visual_list.append([final_list[parent_index], item, original_matrix[final_list[parent_index]][item]])
+                visual_list.append(
+                    [final_list[parent_index], item, original_matrix[final_list[parent_index]][item]])
                 parent_index += 1
 
     else:
