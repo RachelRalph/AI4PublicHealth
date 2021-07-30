@@ -30,34 +30,33 @@ INCLUDE_MULTILINE = True
 
 
 def intersection_processing(intersection_df):
-    def intersection_processing(intersection_df):
-        """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
-            version of the original data from the .shp file. """
+    """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
+        version of the original data from the .shp file. """
 
-        # Create a secondary pandas data frame that contains the index of nodes, start/end longitude and latitude,
-        # elevation, road condition, and road type.
-        processed_data = []
+    # Create a secondary pandas data frame that contains the index of nodes, start/end longitude and latitude,
+    # elevation, road condition, and road type.
+    processed_data = []
 
-        # TODO: Maybe there's a more efficient way to do this than to loop through the entire unprocessed data set
-        for rows in range(len(intersection_df.index)):
-            coordinates_line = intersection_df.iloc[rows, 2]
-            # TODO: Check what the team meant by this comment
-            # Maybe take out the start lat and long here if we combine the dataframes for the line and point data
-            for item in coordinates_line:
-                coordinates_line = item
+    # TODO: Maybe there's a more efficient way to do this than to loop through the entire unprocessed data set
+    for rows in range(len(intersection_df.index)):
+        coordinates_line = intersection_df.iloc[rows, 2]
+        # TODO: Check what the team meant by this comment
+        # Maybe take out the start lat and long here if we combine the dataframes for the line and point data
+        for item in coordinates_line:
+            coordinates_line = item
 
-                coordinates_line = list(coordinates_line.coords)
+            coordinates_line = list(coordinates_line.coords)
 
-                start_longitude = coordinates_line[0][0]
-                start_latitude = coordinates_line[0][1]
+            start_longitude = coordinates_line[0][0]
+            start_latitude = coordinates_line[0][1]
 
-                processed_data.append((start_longitude, start_latitude))
+            processed_data.append((start_longitude, start_latitude))
 
-        processed_data = pd.DataFrame(processed_data)
-        processed_data = processed_data.rename(
-            columns={0: "Longitude", 1: "Latitude"})
+    processed_data = pd.DataFrame(processed_data)
+    processed_data = processed_data.rename(
+        columns={0: "Longitude", 1: "Latitude"})
 
-        return processed_data
+    return processed_data
 
 
 def road_elevation_processing(road_elevation_df, intersection_df):
