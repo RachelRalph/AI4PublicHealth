@@ -13,7 +13,7 @@ START_TIME = time.time()
 SCRIPT_PATH = os.path.dirname(__file__)
 
 # Read the node intersection geojson file via geopandas and store as a pandas dataframe.
-NODE_INTERSECTION_PATH = os.path.join(SCRIPT_PATH, "Datasets/Mzuzu_Road_Intersections.geojson")
+NODE_INTERSECTION_PATH = os.path.join(SCRIPT_PATH, "Datasets/Clipped_Mzuzu_Road_Intersections.geojson")
 NODE_INTERSECTION_DATA = gpd.read_file(NODE_INTERSECTION_PATH)
 NODE_INTERSECTION_DATA = pd.DataFrame(NODE_INTERSECTION_DATA)
 
@@ -30,28 +30,34 @@ INCLUDE_MULTILINE = True
 
 
 def intersection_processing(intersection_df):
-    """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
-        version of the original data from the .shp file. """
+    def intersection_processing(intersection_df):
+        """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
+            version of the original data from the .shp file. """
 
-    # Create a secondary pandas data frame that contains the index of nodes, start/end longitude and latitude,
-    # elevation, road condition, and road type.
-    processed_data = []
+        # Create a secondary pandas data frame that contains the index of nodes, start/end longitude and latitude,
+        # elevation, road condition, and road type.
+        processed_data = []
 
-    # TODO: Maybe there's a more efficient way to do this than to loop through the entire unprocessed data set
-    for rows in range(len(intersection_df.index)):
-        # TODO: Check what the team meant by this comment
-        # Maybe take out the start lat and long here if we combine the dataframes for the line and point data
-        coordinates = list(intersection_df.iloc[rows, 2].coords)
-        start_longitude = coordinates[0][0]
-        start_latitude = coordinates[0][1]
+        # TODO: Maybe there's a more efficient way to do this than to loop through the entire unprocessed data set
+        for rows in range(len(intersection_df.index)):
+            coordinates_line = intersection_df.iloc[rows, 2]
+            # TODO: Check what the team meant by this comment
+            # Maybe take out the start lat and long here if we combine the dataframes for the line and point data
+            for item in coordinates_line:
+                coordinates_line = item
 
-        processed_data.append((start_longitude, start_latitude))
+                coordinates_line = list(coordinates_line.coords)
 
-    processed_data = pd.DataFrame(processed_data)
-    processed_data = processed_data.rename(
-        columns={0: "Longitude", 1: "Latitude"})
+                start_longitude = coordinates_line[0][0]
+                start_latitude = coordinates_line[0][1]
 
-    return processed_data
+                processed_data.append((start_longitude, start_latitude))
+
+        processed_data = pd.DataFrame(processed_data)
+        processed_data = processed_data.rename(
+            columns={0: "Longitude", 1: "Latitude"})
+
+        return processed_data
 
 
 def road_elevation_processing(road_elevation_df, intersection_df):
@@ -86,7 +92,8 @@ def road_elevation_processing(road_elevation_df, intersection_df):
     processed_data = pd.DataFrame(processed_data)
 
     processed_data = processed_data.rename(
-        columns={0: "Longitude", 1: "Latitude", 2: "Elevation", 3: "Road Condition", 4: "Road Type", 5: "Intersection Node"})
+        columns={0: "Longitude", 1: "Latitude", 2: "Elevation", 3: "Road Condition", 4: "Road Type",
+                 5: "Intersection Node"})
 
     return processed_data
 
@@ -153,10 +160,65 @@ def road_line_processing(road_line_df):
     return processed_data_line
 
 
+def confirmation_intersection_points(intersection_df, road_elevation_df):
+    intersection_confirm = []
+
+    # Get the rows from road_elevation_df that contain 'True' for the node intersection column.
+    for row in range(len(road_elevation_df.index)):
+        if road_elevation_df.iloc[row][5]:
+            lat = road_elevation_df.iloc[row, 0]
+            long = road_elevation_df.iloc[row, 1]
+            intersection_confirm.append([lat, long])
+        else:
+            continue
+
+    # Make the list into a dataframe, give it column names, reset the index, drop the extra index column,
+    # and sort the values.
+    intersection_confirm = pd.DataFrame(intersection_confirm)
+    intersection_confirm = intersection_confirm.rename(
+        columns={0: "Longitude", 1: "Latitude"})
+    intersection_confirm = intersection_confirm.reset_index()
+    intersection_confirm = intersection_confirm.drop("index", axis=1)
+    intersection_confirm.sort_values(by=["Longitude"], ascending=False)
+
+    # Create another list to contain the rows that aren't present in both lists.
+    not_equal = []
+
+    # Get the difference between the number of rows in intersection_row and the intersection_confirm.
+    compare_val = len(intersection_df.index) - len(intersection_confirm.index)
+
+    # Make two sublist containing just the longitude and latitude from the intersection_confirmation datafrane.
+    intersection_confirm_longitude_list = intersection_confirm["Longitude"].values
+    intersection_confirm_latitude_list = intersection_confirm["Latitude"].values
+
+    for row in range(len(intersection_df.index) - compare_val):
+        if intersection_df.iloc[row, 0] in intersection_confirm_longitude_list:
+            if intersection_df.iloc[row, 1] in intersection_confirm_latitude_list:
+                continue
+            else:
+                not_equal.append(intersection_df.iloc[row])
+        else:
+            not_equal.append(intersection_df.iloc[row])
+
+    not_equal = pd.DataFrame(not_equal)
+    not_equal = not_equal.rename(
+        columns={0: "Longitude", 1: "Latitude"})
+    not_equal = not_equal.reset_index()
+    not_equal = not_equal.drop("index", axis=1)
+    not_equal.sort_values(by=["Longitude"], ascending=False)
+
+    return not_equal, intersection_confirm
+
+
 def main():
     intersection_nodes = intersection_processing(NODE_INTERSECTION_DATA)
+    intersection_nodes.sort_values(by=["Longitude"], ascending=False)
+
     road_elevation_nodes = road_elevation_processing(ROAD_POINT_WITH_ELEVATION_DATA, intersection_nodes)
     road_line_nodes = road_line_processing(ROAD_LINE_DATA)
+
+    not_equal_nodes, intersection_confirm_nodes = confirmation_intersection_points(intersection_nodes,
+                                                                                   road_elevation_nodes)
 
     print("INTERSECTION NODES:")
     print(intersection_nodes)
@@ -167,38 +229,15 @@ def main():
     print("\nROAD LINE NODES:")
     print(road_line_nodes)
 
-    """    from shapely.geometry import Point
-    clean_line_data['geometry'] = clean_line_data.apply(
-        lambda x: Point((float(x.start_longitude), float(x.start_latitude))), axis=1)
-    import geopandas
-    clean_line_data = geopandas.GeoDataFrame(clean_line_data, geometry='point')
-    clean_line_data.to_file('Road_Elevation_With_Intersection_Boolean.shp', driver='ESRI Shapefile')"""
+    print("\nINTERSECTION CONFIRMATION NODES:")
+    print(intersection_confirm_nodes)
+
+    print("\nNOT EQUAL NODES:")
+    print(not_equal_nodes)
 
     print()
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
-
-    intersection_confirm = []
-
-    for row in range(len(road_elevation_nodes.index)):
-        if road_elevation_nodes.iloc[row][5]:
-            intersection_confirm.append(road_elevation_nodes.iloc[row][0])
-            intersection_confirm.append(road_elevation_nodes.iloc[row][1])
-        else:
-            continue
-
-    intersection_confirm = pd.DataFrame(intersection_confirm)
-    intersection_confirm = intersection_confirm.reset_index()
-
-    intersection_nodes.sort_values(by = ["Longitude"])
-    intersection_confirm.sort_values(by = ["Longitude"])
-
-    print(intersection_nodes)
-    print(intersection_confirm)
-
-    """for row in range(len(intersection_nodes.index)):
-        if"""
-
 
 
 if __name__ == "__main__":
