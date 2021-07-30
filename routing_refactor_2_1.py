@@ -28,7 +28,6 @@ DATA_PATH = os.path.join(SCRIPT_PATH, "fake_dummy_data/DummyData.shp")
 # Read the .shp file via geopanadas and store as a pandas dataframe.
 ROUTES = gpd.read_file(DATA_PATH)
 ROUTE_DATA = pd.DataFrame(ROUTES)
-print(ROUTE_DATA)
 
 # Get the start time.
 START_TIME = time.time()
@@ -175,7 +174,7 @@ class PriorityQueue:
         return node, cost
 
 
-class SolidStateNode():
+class SolidStateNode:
 
     def __init__(self, parent_node, node_id, node, level, reduced_matrix, cost):
         self.node = node
@@ -196,7 +195,7 @@ class SolidStateNode():
         self.children.append(child)
 
 
-class SolidStateTree():
+class SolidStateTree:
 
     def __init__(self, root):
         self.root = root
@@ -432,8 +431,6 @@ def prims_algorithm(start_node, original_matrix, graph):
 
     priority_queue = PriorityQueue()
     parent_node = graph.nodes[start_node]
-    closed_list = []
-    final_list = []
     visual_list = []
 
     priority_queue.push_with_matrix(parent_node, initial_cost, cost_matrix)
@@ -441,7 +438,7 @@ def prims_algorithm(start_node, original_matrix, graph):
     # A Python program for Prim's Minimum Spanning Tree (MST) algorithm.
     # The program is for adjacency matrix representation of the graph
 
-    class PrimsGraph():
+    class PrimsGraph:
 
         def __init__(self, vertices):
             self.V = vertices
@@ -481,7 +478,7 @@ def prims_algorithm(start_node, original_matrix, graph):
 
             parent[0] = -1  # First node is always the root of
 
-            for cout in range(self.V):
+            for _ in range(self.V):
                 """print("\nParent: ", parent)
                 print("Keys: ", key)
                 print("mstSet: ", mstSet)"""
@@ -530,7 +527,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
     final_list = []
 
     root = SolidStateNode(None, 0, parent_node, 0, cost_matrix, initial_cost)
-    solid_state_tree = SolidStateTree(root)
+    SolidStateTree(root)
 
     priority_queue.push_wo_matrix(root, initial_cost)
 
@@ -552,7 +549,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
         parent_matrix = parent_state.reduced_matrix
 
         # print("PARENT LEVEL: " , parent_state.level)
-
+        print(parent_state.level, graph.size() - 1 + num_of_backtracks)
         if parent_state.level >= graph.size() - 1 + num_of_backtracks:
             root_connection = False
             for connection in parent.connections:
@@ -567,8 +564,9 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
             parent_matrix_copy = copy.deepcopy(parent_matrix)
 
-            parent_copy_explored = explore_edge(parent.id, parent.id, root.node.id, copy.deepcopy(parent_matrix_copy))
+            parent_copy_explored = explore_edge(parent.id, parent.id, root.node.id, parent_matrix_copy)
             cost_for_step, parent_copy_reduced = calculate_cost(parent_copy_explored)
+
             branch_cost = cost_for_step
             branch_cost += cost
             branch_cost += cost_matrix[parent.id, root.node.id]
@@ -589,6 +587,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
             if priority_queue.isEmpty():
                 return_val = lowest_branch
+
             if lowest_branch_cost > branch_cost:
                 lowest_branch_cost = branch_cost
                 lowest_branch = []
@@ -618,9 +617,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
         for sub_node in parent.connections:
             if sub_node not in parent_state.closedList or len(parent.connections) == 1:
-                # print(sub_node.id)
                 # Set initial cost to that of the parent cost.
-
                 total_cost = cost
                 parent_matrix_copy = copy.deepcopy(parent_matrix)
 
@@ -633,7 +630,6 @@ def space_state_algorithm(start_node, original_matrix, graph):
                 # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
                 # cost. NOTE: This must be done on the current parent reduced matrix.
                 parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
-                # print(parent_matrix_copy_explored)
                 cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
                 total_cost += cost_for_step
 
@@ -643,17 +639,9 @@ def space_state_algorithm(start_node, original_matrix, graph):
                                             parent_matrix_copy_explored, total_cost)
                 i += 1
 
-                # print(parent_state.level)
-
                 priority_queue.push_wo_matrix(state_node, cost)
 
-                # testing(costs_list=[cost, edge_cost, cost_for_step, total_cost])
-                # print("    ", sub_node.id, sub_node.cost)
-            # print(cost)
-        # print("------------------------")
         closed_list.append(parent)
-        # search_solid_state_tree(solid_state_tree.root)
-        # print("Return val: ", return_val)
 
     if len(return_val) > 0:
         parent_index = 0
@@ -867,7 +855,7 @@ def main():
     # General Parameters
     ALGORITHM = 4
     TESTING = True
-    VISUALIZATION = True
+    VISUALIZATION = False
     ideal_route = []
 
     # If we want to test the code using our sample matrices.
