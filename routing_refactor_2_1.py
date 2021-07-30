@@ -28,6 +28,7 @@ DATA_PATH = os.path.join(SCRIPT_PATH, "fake_dummy_data/DummyData.shp")
 # Read the .shp file via geopanadas and store as a pandas dataframe.
 ROUTES = gpd.read_file(DATA_PATH)
 ROUTE_DATA = pd.DataFrame(ROUTES)
+print(ROUTE_DATA)
 
 # Get the start time.
 START_TIME = time.time()
@@ -865,13 +866,13 @@ def visualization(graph_data=None, path=None):
 def main():
     # General Parameters
     ALGORITHM = 4
-    TESTING = False
+    TESTING = True
     VISUALIZATION = True
     ideal_route = []
 
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 4
+        sample_number = 1
         data, ideal_route = sample_data(sample_number)
 
         graphical_data = Graph(data)
