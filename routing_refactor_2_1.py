@@ -536,6 +536,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
     lowest_branch_cost = math.inf
     lowest_branch = []
+    first_branch = []
+    first_branch_cost = math.inf
     return_val = []
 
     while not priority_queue.isEmpty():
@@ -549,8 +551,15 @@ def space_state_algorithm(start_node, original_matrix, graph):
         parent_matrix = parent_state.reduced_matrix
 
         # print("PARENT LEVEL: " , parent_state.level)
-        print(parent_state.level, graph.size() - 1 + num_of_backtracks)
         if parent_state.level >= graph.size() - 1 + num_of_backtracks:
+            if len(first_branch) == 0:
+                first_branch_cost = parent_state.cost
+                next_state = parent_state
+                while next_state != None:
+                    first_branch.append(next_state.node.id)
+                    next_state = next_state.parent_node
+                first_branch.reverse()
+
             root_connection = False
             for connection in parent.connections:
                 if connection.id == root.node.id:
@@ -558,9 +567,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
             if not root_connection:
                 continue
-                print("Can't find the root!")
 
-            print("Found root...")
 
             parent_matrix_copy = copy.deepcopy(parent_matrix)
 
@@ -574,19 +581,29 @@ def space_state_algorithm(start_node, original_matrix, graph):
             if not priority_queue.isEmpty():
                 next_node, next_node_cost = priority_queue.peek()
 
-                print(next_node_cost, branch_cost)
+
 
                 if branch_cost <= next_node_cost:
-                    while parent_state is not None:
-                        return_val.append(parent_state.node.id)
-                        parent_state = parent_state.parent_node
+                    if branch_cost < first_branch_cost*2:
+                        while parent_state is not None:
+                            return_val.append(parent_state.node.id)
+                            parent_state = parent_state.parent_node
 
-                    return_val.reverse()
-                    return_val.append(0)
-                    break
+                        return_val.reverse()
+                        return_val.append(0)
+                        break
 
+                    else:
+                        return_val = first_branch
+                        break
+
+            
             if priority_queue.isEmpty():
-                return_val = lowest_branch
+                if first_branch_cost*2 < lowest_branch_cost:
+                    print("Returning first branch...")
+                    return_val = first_branch
+                else:
+                    return_val = lowest_branch
 
             if lowest_branch_cost > branch_cost:
                 lowest_branch_cost = branch_cost
@@ -595,7 +612,6 @@ def space_state_algorithm(start_node, original_matrix, graph):
                 lowest_node = parent
                 while lowest_state_node is not None:
                     lowest_branch.append(lowest_state_node.node.id)
-                    print(lowest_state_node.node.id)
                     lowest_state_node = lowest_state_node.parent_node
 
                 lowest_branch.reverse()
@@ -854,13 +870,13 @@ def visualization(graph_data=None, path=None):
 def main():
     # General Parameters
     ALGORITHM = 4
-    TESTING = True
-    VISUALIZATION = False
+    TESTING = False
+    VISUALIZATION = True
     ideal_route = []
 
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 1
+        sample_number = 4
         data, ideal_route = sample_data(sample_number)
 
         graphical_data = Graph(data)
