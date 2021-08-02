@@ -7,14 +7,14 @@ import copy
 from operator import attrgetter
 import time
 
-# Get script and dataset file paths.
+"""# Get script and dataset file paths.
 SCRIPT_PATH = os.path.dirname(__file__)
 DATA_PATH = os.path.join(SCRIPT_PATH, "DummyData.shp")
 # Read the .shp file via geopanadas and store as a pandas dataframe.
 ROUTES = gpd.read_file(DATA_PATH)
 ROUTE_DATA = pd.DataFrame(ROUTES)
 GRAPH = False
-
+"""
 
 # TODO: Incorporate multi vist modifications for the importance factor
 def preprocessing(unprocessed_raw_data):
@@ -518,9 +518,9 @@ def main():
             print("          Long/Lat:", connections.lat, connections.longt)
             print("          Time:", node.connections[connections])
     print("\n")"""
-    # direct_route = node_to_node_search(GRAPH.nodes[5], GRAPH.nodes[1])
+
+    direct_route = node_to_node_search(GRAPH.nodes[5], GRAPH.nodes[1])
     # hit_all_route = search_round_routes(GRAPH.nodes())
-    all_node_search()
 
     testing(connection_testing=[False, GRAPH],
             time_dist=[False, GRAPH])

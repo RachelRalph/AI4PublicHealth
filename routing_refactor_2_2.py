@@ -56,9 +56,10 @@ def preprocessing(unprocessed_raw_data):
 
 # TODO: Comment through the classes, I don't have the brains for this, so Rachel pop off bro.
 class Node:
-    def __init__(self, lat, longt, id, importance):
+    def __init__(self, lat, longt, id, elevation):
         self.lat = lat
         self.longt = longt
+        self.elevation = elevation
         self.connections = {}
         self.nodes = []
         self.times = []
@@ -66,7 +67,6 @@ class Node:
         self.f = None
         self.g = None
         self.h = None
-        self.importance = importance
         self.traveling_salesman_path = None
         self.cost = 0
 
@@ -176,7 +176,7 @@ def node_to_node_search(start_node, goal):
 
     start_node.f = 0
     start_node.g = 0
-    tree_dict = {start_node: 0}
+    tree_dict = {start_node.id: 0}
 
     while len(open_list) != 0:
         current_node = open_list[0]
@@ -185,8 +185,7 @@ def node_to_node_search(start_node, goal):
         if current_node != start_node:
             current_node = min(open_list, key=attrgetter('f'))
 
-        #
-        level = tree_dict[current_node]
+        level = tree_dict[current_node.id]
         open_list.remove(current_node)
 
         if level == len(final_route):
@@ -199,7 +198,12 @@ def node_to_node_search(start_node, goal):
 
         # Check if the goal node has been reached
         if current_node == goal:
-            return final_route
+            final_final_route = []
+
+            for node in final_route:
+                final_final_route.append(node.id)
+
+            return final_final_route, final_final_route
 
         # For the current_node, go through all of its connections, and determine their f(x) as a sum of their h(x)
         # and g(x).
@@ -208,10 +212,11 @@ def node_to_node_search(start_node, goal):
                 continue
             found = False
             for key, value in tree_dict.items():
+                print(sub_node.id, key, value)
                 if key == sub_node:
                     found = True
             if not found:
-                tree_dict[sub_node] = level + 1
+                tree_dict[sub_node.id] = level + 1
 
             sub_node.g = current_node.connections[sub_node] + current_node.g
             sub_node.h = heuristic(sub_node, goal) * 4146.282847732093
@@ -219,10 +224,11 @@ def node_to_node_search(start_node, goal):
 
             open_list.append(sub_node)
 
-        print("Current Node:", current_node.id, current_node.f)
+        print("Current Node:", current_node.id, level, current_node.f)
         for sub_node in open_list:
             print("    Sub-Nodes Data:", sub_node.id, sub_node.f, sub_node.importance)
         print("\n")
+
 
 
 def testing(data_frame=None, graph=None, matrix=None, costs_list=None):
@@ -269,7 +275,7 @@ def testing(data_frame=None, graph=None, matrix=None, costs_list=None):
         view_connections()
     if matrix is not None:
         view_cost_matrix()
-    if graph_data is not None:
+    if costs_list is not None:
         costs()
 
 
@@ -280,20 +286,20 @@ def sample_data(sample_matrix_number):
 
     # Triangle + Dead end.
     if sample_matrix_number == 1:
-        testing_data = [[10, [0, 0], [1, 1], 0],
-                        [10, [1, 1], [2, 2], 0],
-                        [60, [1, 1], [3, 3], 0],
-                        [800, [0, 0], [3, 3], 0]]
+        testing_data = [[10, [0, 0], [1, 1], 2147],
+                        [10, [1, 1], [2, 2], 2000],
+                        [60, [1, 1], [3, 3], 1896],
+                        [800, [0, 0], [3, 3], 1849]]
 
         data_check = [0, 1, 2, 1, 3]
 
     # Diamond + Dead end.
     elif sample_matrix_number == 2:
-        testing_data = [[10, [0, 0], [1, 1], 0],
-                        [10, [1, 1], [2, 2], 0],
-                        [20, [2, 2], [3, 3], 0],
-                        [300, [2, 2], [4, 4], 0],
-                        [500, [0, 0], [4, 4], 0]]
+        testing_data = [[10, [0, 0], [1, 1], 2342],
+                        [10, [1, 1], [2, 2], 2123],
+                        [20, [2, 2], [3, 3], 1823],
+                        [300, [2, 2], [4, 4], 1946],
+                        [500, [0, 0], [4, 4], 2312]]
 
         data_check = [0, 1, 2, 3, 2, 4]
 
@@ -344,7 +350,7 @@ def sample_data(sample_matrix_number):
 
     # Turn the chosen matrix into a pd.DataFrame, and set the column labels.
     testing_data = pd.DataFrame(testing_data)
-    testing_data.columns = ["Time", "Starting coordinates", "Finishing coordinates", "Importance"]
+    testing_data.columns = ["Time", "Starting coordinates", "Finishing coordinates", "Elevation"]
 
     return testing_data, data_check
 
@@ -409,27 +415,26 @@ def visualization(graph_data=None, path=None):
 
 def main():
     # General Parameters
-    ALGORITHM = 4
-    TESTING = False
+    TESTING = True
     VISUALIZATION = True
     ideal_route = []
 
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 4
+        sample_number = 1
         data, ideal_route = sample_data(sample_number)
 
         graphical_data = Graph(data)
         matrix_data = graphical_data.convert_to_matrix()
 
         # For sample 3, as the bidirectional weights are unequal, force the matrix to be the following
-        if sample_number == 3:
+        """if sample_number == 3:
             matrix_data = [[math.inf, 20, 30, 10, 11],
                            [15, math.inf, 16, 4, 2],
                            [3, 5, math.inf, 2, 4],
                            [19, 6, 18, math.inf, 3],
                            [16, 4, 7, 16, math.inf]]
-            matrix_data = np.array(matrix_data)
+            matrix_data = np.array(matrix_data)"""
 
     # If we are using the dummy data set, do the following.
     else:
@@ -438,15 +443,10 @@ def main():
         graphical_data = Graph(data)
         matrix_data = graphical_data.convert_to_matrix()
 
+    # testing(graph=graphical_data, matrix = matrix_data)
+
     # Determine the algorithmic route.
-    if ALGORITHM == 1:
-        final_path, visual_path = tutorial_algorithm(0, matrix_data, graphical_data)
-    elif ALGORITHM == 2:
-        final_path, visual_path = g_g_algorithm(0, matrix_data, graphical_data)
-    elif ALGORITHM == 3:
-        final_path, visual_path = prims_algorithm(0, matrix_data, graphical_data)
-    else:
-        final_path, visual_path = space_state_algorithm(0, matrix_data, graphical_data)
+    final_path, visual_path = node_to_node_search(graphical_data.nodes[0], graphical_data.nodes[3])
 
     if TESTING:
         if final_path == ideal_route:
@@ -463,8 +463,8 @@ def main():
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
-    if VISUALIZATION:
-        visualization(graph_data=graphical_data, path=visual_path)
+    """if VISUALIZATION:
+        visualization(graph_data=graphical_data, path=visual_path)"""
 
 
 if __name__ == "__main__":
