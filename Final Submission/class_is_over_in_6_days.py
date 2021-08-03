@@ -573,7 +573,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
                         while parent_state is not None:
                             return_val.append(parent_state.node.id)
                             parent_state = parent_state.parent_node
-                        #print("Return Value: ", return_val)
+                        # print("Return Value: ", return_val)
                         return_val.reverse()
                         return_val.append(0)
                         break
@@ -584,13 +584,13 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
             if priority_queue.isEmpty():
                 if first_branch_cost * 2 < lowest_branch_cost:
-                    #print("Returning first branch...")
+                    # print("Returning first branch...")
                     return_val = first_branch
                 else:
                     return_val = lowest_branch
 
             if lowest_branch_cost > branch_cost:
-                #print("Adding lowest branch...")
+                # print("Adding lowest branch...")
                 lowest_branch_cost = branch_cost
                 lowest_branch = []
                 lowest_state_node = parent_state
@@ -602,19 +602,19 @@ def space_state_algorithm(start_node, original_matrix, graph):
                 lowest_branch.reverse()
                 lowest_branch.append(0)
 
-            #print("Going to the top of the loop...")
+            # print("Going to the top of the loop...")
 
             continue
 
         if cost > lowest_branch_cost:
             return_val = lowest_branch
-            #print("Found lowest cost")
+            # print("Found lowest cost")
             break
-        #print("Going on down...")
+        # print("Going on down...")
 
-        #if len(parent.connections) == 1:
-            #num_of_backtracks = 1
-        #print("Lowest Bracnh: ", lowest_branch)
+        # if len(parent.connections) == 1:
+        # num_of_backtracks = 1
+        # print("Lowest Bracnh: ", lowest_branch)
         for sub_node in parent.connections:
             if sub_node not in parent_state.closedList or len(parent.connections) == 1:
                 # Set initial cost to that of the parent cost.
@@ -670,6 +670,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
                     [final_list[matrix_insert], item, original_matrix[final_list[matrix_insert]][item]])
 
     return final_list, visual_list
+
 
 def prims_algorithm(start_node, original_matrix, graph):
     # Make a copy of the original matrix, this is needed for the Prims algorithm.
@@ -763,6 +764,63 @@ def prims_algorithm(start_node, original_matrix, graph):
     return visual_list, visual_list
 
 
+def visualization(graph_data=None, path=None):
+    if graph_data is not None:
+        plt.figure(1)
+        G = nx.Graph()
+
+        node_list = []
+        edge_list = []
+        edge_labels_dict = {}
+
+        for node in graph_data.nodes:
+            node_list.append(node.id)
+            for connections in node.connections:
+                edge_list.append([node.id, connections.id])
+                edge_labels_dict[(node.id, connections.id)] = node.connections[connections]
+
+        G.add_nodes_from(node_list)
+        G.add_edges_from(edge_list)
+
+        pos = nx.spring_layout(G)
+
+        nx.draw(G, pos, with_labels=True, connectionstyle="arc3,rad=0.1", node_color='orange', font_color='white')
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
+        # plt.savefig("simple_path.png")  # save as png
+
+    if path is not None:
+        plt.figure(2)
+        H = nx.Graph()
+
+        node_list = []
+        edge_list = []
+        edge_labels_dict = {}
+
+        for row in path:
+            parent_node = row[0]
+            sub_node = row[1]
+            edge_weight = row[2]
+
+            node_list.append(parent_node)
+            edge_list.append([parent_node, sub_node])
+
+            edge_labels_dict[(parent_node, sub_node)] = edge_weight
+
+        print(node_list)
+        print(edge_list)
+        print(edge_labels_dict)
+
+        H.add_nodes_from(node_list)
+        H.add_edges_from(edge_list)
+
+        pos = nx.spring_layout(H)
+
+        nx.draw(H, pos, with_labels=True, connectionstyle="arc3,rad=0.1", node_color='orange', font_color='white')
+        nx.draw_networkx_edge_labels(H, pos, edge_labels=edge_labels_dict)
+        # plt.savefig("simple_path.png")  # save as png
+
+    plt.show()
+
 
 def main():
     VISUALIZATION = True
@@ -773,6 +831,14 @@ def main():
         node_data_wo_intersections = pd.read_csv("1_processed_road_line_nodes", sep=',')
         node_coord_pairs, multi_index_pairs = node_dictionary(node_data_wo_intersections)
         node_data = pd.read_csv("2_processed_road_line_nodes_w_intersections", sep=',')
+
+        with open("graph_1.pkl", "rb") as tf:
+            graph = pickle.load(tf)
+
+        with open("nodes_for_graph_1.pkl", "rb") as tf:
+            nodes_for_graph = pickle.load(tf)
+
+        nodes_list = graph.keys()
 
     else:
         road_line_nodes = road_line_processing(ROAD_LINE_DATA)
@@ -815,31 +881,11 @@ def main():
             nodes_for_graph.append(new_node)
             id_num += 1
 
-        for graph_node in nodes_for_graph:
-            graph_node.convert_connections_for_graph()
-            for node in nodes_list:
-                if node.long_lat == graph_node.long_lat:
-                    for connection in graph[node]:
-                        for other_graph_node in nodes_for_graph:
-                            if connection[0].long_lat == other_graph_node.long_lat:
-                                graph_node.connections[other_graph_node] = connection[1]
-
-        with open("nodes_for_graph_1.txt", "wb") as fp:
+        with open("nodes_for_graph_1.pkl", "wb") as fp:
             pickle.dump(nodes_for_graph, fp)
 
-        with open("nodes_for_graph_1.txt", "wb") as fp:
-            pickle.dump(nodes_for_graph, fp)
-
-    with open("nodes_for_graph_1.txt", "rb") as fp:
-        nodes_for_graph = pickle.load(fp)
-
-    id_num = 0
-
-    for node in nodes_list:
-        new_node = Node(None, None, node.long_lat, None, id_num)
-        connections = {}
-        nodes_for_graph.append(new_node)
-        id_num += 1
+        with open("graph_1.pkl", "wb") as fp:
+            pickle.dump(graph, fp)
 
     for graph_node in nodes_for_graph:
         graph_node.convert_connections_for_graph()
@@ -849,12 +895,6 @@ def main():
                     for other_graph_node in nodes_for_graph:
                         if connection[0].long_lat == other_graph_node.long_lat:
                             graph_node.connections[other_graph_node] = connection[1]
-
-    for graph_node in nodes_for_graph:
-        for connection in graph_node.connections:
-            for other_graph_node in nodes_for_graph:
-                if other_graph_node in graph_node.connections.keys() and graph_node not in other_graph_node.connections.keys():
-                    other_graph_node.connections[graph_node] = graph_node.connections[other_graph_node]
 
     graphical_data = Graph(nodes_for_graph)
 
@@ -866,15 +906,8 @@ def main():
     else:
         final_path, visual_path = prims_algorithm(0, matrix, graphical_data)
 
-
-        
-
     if VISUALIZATION:
         visualization(graph_data=graphical_data, path=visual_path)
-
-    print(final_path)
-    print()
-    print(np.array(visual_path))
 
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
