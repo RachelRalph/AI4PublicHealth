@@ -10,6 +10,8 @@ import copy
 import sys
 import random
 from operator import attrgetter
+import matplotlib.pyplot as plt
+import networkx as nx
 import time
 
 # Get the start time.
@@ -178,8 +180,8 @@ def intersection_node_dictionary(node_df):
 
     for index, row in node_df.iterrows():
         if row["Is Intersection"]:
-            row_node = Node(None, None, row["Long/Lat Coordinates"], row["Connections"], None)
-            intersection_node_dict[row["Long/Lat Coordinates"]] = row_node
+            row_node = Node(None, None, eval(row["Long/Lat Coordinates"]), eval(row["Connections"]), None)
+            intersection_node_dict[eval(row["Long/Lat Coordinates"])] = row_node
 
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
@@ -367,8 +369,8 @@ def heuristic(long1, lat1, long2, lat2):
     return math.sqrt((lat2 - lat1) ** 2 + (long2 - long1) ** 2)
 
 
-# Algorithims
-def node_to_node_search(start_node, goal):
+# Algorithms
+def node_to_node_search(start_node, goal, intersection_dict):
     open_list = [start_node]
     closed_list = []
     final_route = []
@@ -404,8 +406,8 @@ def node_to_node_search(start_node, goal):
         # and g(x).
         for sub_node in current_node.connections:
             long_lat = sub_node
-            if sub_node in node_dictionary.keys():
-                sub_node = node_dictionary[sub_node]
+            if sub_node in intersection_dict.keys():
+                sub_node = intersection_dict[sub_node]
             else:
                 continue
             if sub_node in closed_list:
@@ -453,8 +455,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
     return_val = []
 
     while not priority_queue.isEmpty():
-        search_solid_state_tree(root)
-        print("Hey! Checking priority queue...")
+        # search_solid_state_tree(root)
+        # print("Hey! Checking priority queue...")
 
         parent_state, cost = priority_queue.pop_wo_matrix()
         # print(parent_state)
@@ -497,7 +499,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
                         while parent_state is not None:
                             return_val.append(parent_state.node.id)
                             parent_state = parent_state.parent_node
-
+                        print("Return Value: ", return_val)
                         return_val.reverse()
                         return_val.append(0)
                         break
@@ -514,6 +516,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
                     return_val = lowest_branch
 
             if lowest_branch_cost > branch_cost:
+                print("Adding lowest branch...")
                 lowest_branch_cost = branch_cost
                 lowest_branch = []
                 lowest_state_node = parent_state
@@ -583,18 +586,78 @@ def space_state_algorithm(start_node, original_matrix, graph):
         matrix_insert = 0
         for item in closed_list:
             if len(closed_list) - len(final_list) < len(closed_list):
-                visual_list[matrix_insert].insert(1, item.id)
+                visual_list.append(
+                    [final_list[matrix_insert], item.id, original_matrix[final_list[matrix_insert]][item.id]])
                 matrix_insert += 1
-
             final_list.append(item.id)
-
             if len(closed_list) - len(final_list) == 0:
-                visual_list[matrix_insert].insert(1, visual_list[matrix_insert][0])
+                visual_list.append(
+                    [final_list[matrix_insert], item.id, original_matrix[final_list[matrix_insert]][item.id]])
 
     return final_list, visual_list
 
 
+def visualization(graph_data=None, path=None):
+    if graph_data is not None:
+        plt.figure(1)
+        G = nx.Graph()
+
+        node_list = []
+        edge_list = []
+        edge_labels_dict = {}
+
+        for node in graph_data.nodes:
+            node_list.append(node.id)
+            for connections in node.connections:
+                edge_list.append([node.id, connections.id])
+                edge_labels_dict[(node.id, connections.id)] = node.connections[connections]
+
+        G.add_nodes_from(node_list)
+        G.add_edges_from(edge_list)
+
+        pos = nx.spring_layout(G)
+
+        nx.draw(G, pos, with_labels=True, connectionstyle="arc3,rad=0.1")
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
+        # plt.savefig("simple_path.png")  # save as png
+
+    if path is not None:
+        plt.figure(2)
+        H = nx.Graph()
+
+        node_list = []
+        edge_list = []
+        edge_labels_dict = {}
+
+        for row in path:
+            parent_node = row[0]
+            sub_node = row[1]
+            edge_weight = row[2]
+
+            node_list.append(parent_node)
+            edge_list.append([parent_node, sub_node])
+
+            edge_labels_dict[(parent_node, sub_node)] = edge_weight
+
+        """print(node_list)
+        print(edge_list)
+        print(edge_labels_dict)"""
+
+        H.add_nodes_from(node_list)
+        H.add_edges_from(edge_list)
+
+        pos = nx.spring_layout(H)
+
+        nx.draw(H, pos, with_labels=True, connectionstyle="arc3,rad=0.1")
+        nx.draw_networkx_edge_labels(H, pos, edge_labels=edge_labels_dict)
+        # plt.savefig("simple_path.png")  # save as png
+
+    plt.show()
+
+
 def main():
+    VISUALIZATION = True
+
     if LOAD_DATA:
         road_line_nodes = pd.read_csv("0_processed_road_lines", sep=',')
         node_data_wo_intersections = pd.read_csv("1_processed_road_line_nodes", sep=',')
@@ -621,15 +684,12 @@ def main():
         columns={'0': "Long/Lat Coordinates", '1': "Connections", '3': "Is Intersection", })
 
     intersection_dict = intersection_node_dictionary(node_data)
-
     house_ids = []
 
     random.seed(42)
 
     for i in range(10):
         house_ids.append(random.randint(0, len(BUILDING_FILE_WITH_ELEVATION)))
-
-    print((33.9853493, -11.3905214) in node_coord_pairs)
 
     nearest_intersections = []
     for house_id in house_ids:
@@ -652,7 +712,6 @@ def main():
                     near_intersection = intersection_dict[(node_long, node_lat)]
         nearest_intersections.append(near_intersection)
 
-    print(nearest_intersections)
     graph = {}
 
     for intersection in nearest_intersections:
@@ -670,7 +729,7 @@ def main():
                     if dist < smallest_dist:
                         smallest_dist = dist
                         closest_house = house_to_go
-            cost = node_to_node_search(closest_house, intersection)
+            cost = node_to_node_search(closest_house, intersection, intersection_dict)
             houses_completed.append(closest_house)
             houses_visited.append((closest_house, cost))
             graph[intersection] = houses_visited
@@ -694,7 +753,19 @@ def main():
                     for other_graph_node in nodes_for_graph:
                         if connection[0].long_lat == other_graph_node.long_lat:
                             graph_node.connections[other_graph_node] = connection[1]
-                            print("Connected nodes")
+
+    graphical_data = Graph(nodes_for_graph)
+
+    matrix = graphical_data.convert_to_matrix()
+
+    final_path, visual_path = space_state_algorithm(0, matrix, graphical_data)
+
+    print(final_path)
+    print()
+    print(visual_path)
+
+    if VISUALIZATION:
+        visualization(graph_data=graphical_data, path=visual_path)
 
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
