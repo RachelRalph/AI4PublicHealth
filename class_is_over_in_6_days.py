@@ -12,36 +12,39 @@ import random
 from operator import attrgetter
 import time
 
+# Get the start time.
+START_TIME = time.time()
+LOAD_DATA = True
+
 # # Get script and dataset file paths.
 SCRIPT_PATH = os.path.dirname(__file__)
-
-# Read the road line data .shp file via geopandas and store as a pandas dataframe.
-ROAD_LINE_DATA = os.path.join(SCRIPT_PATH, "Datasets/MZUZU_roads_lines_CORRECT.shp")
-ROAD_LINE_DATA = gpd.read_file(ROAD_LINE_DATA)
-ROAD_LINE_DATA = pd.DataFrame(ROAD_LINE_DATA)
-
-# Read the road points w/ elevation .shp file via geopandas and store as a pandas dataframe.
-ROAD_POINT_WITH_ELEVATION_PATH = os.path.join(SCRIPT_PATH, "Datasets/MZUZU_roads_pointdata_with_elevation.shp")
-ROAD_POINT_WITH_ELEVATION_DATA = gpd.read_file(ROAD_POINT_WITH_ELEVATION_PATH)
-ROAD_POINT_WITH_ELEVATION_DATA = pd.DataFrame(ROAD_POINT_WITH_ELEVATION_DATA)
 
 # Read the building point data w/ elevation .shp file via geopandas and store as a pandas dataframe.
 BUILDING_FILE_WITH_ELEVATION = os.path.join(SCRIPT_PATH, "Datasets/MZUZU_buildings_with_elevation.shp")
 BUILDING_FILE_WITH_ELEVATION = gpd.read_file(BUILDING_FILE_WITH_ELEVATION)
 BUILDING_FILE_WITH_ELEVATION = pd.DataFrame(BUILDING_FILE_WITH_ELEVATION)
 
-# Get the start time.
-START_TIME = time.time()
+if not LOAD_DATA:
+    # Read the road line data .shp file via geopandas and store as a pandas dataframe.
+    ROAD_LINE_DATA = os.path.join(SCRIPT_PATH, "Datasets/MZUZU_roads_lines_CORRECT.shp")
+    ROAD_LINE_DATA = gpd.read_file(ROAD_LINE_DATA)
+    ROAD_LINE_DATA = pd.DataFrame(ROAD_LINE_DATA)
+
+    # Read the road points w/ elevation .shp file via geopandas and store as a pandas dataframe.
+    ROAD_POINT_WITH_ELEVATION_PATH = os.path.join(SCRIPT_PATH, "Datasets/MZUZU_roads_pointdata_with_elevation.shp")
+    ROAD_POINT_WITH_ELEVATION_DATA = gpd.read_file(ROAD_POINT_WITH_ELEVATION_PATH)
+    ROAD_POINT_WITH_ELEVATION_DATA = pd.DataFrame(ROAD_POINT_WITH_ELEVATION_DATA)
 
 
+# Data processing
 def road_line_processing(road_line_df):
     """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
         version of the original data from the .shp file. """
 
     processed_data_line = []
 
-    for rows in range(len(road_line_df.index)):
-        coordinates_line = road_line_df.iloc[rows, 11]
+    for index, rows in road_line_df.iterrows():
+        coordinates_line = road_line_df.iloc[index, 11]
         string_type = (type(coordinates_line))
 
         if str(string_type) == "<class 'shapely.geometry.linestring.LineString'>":
@@ -65,11 +68,14 @@ def road_line_processing(road_line_df):
         columns={0: "Start Longitude", 1: "Start Latitude", 2: "End Longitude", 3: "End Latitude",
                  4: "Coordinates List"})
 
+    print("Minutes since execution:", (time.time() - START_TIME) / 60)  # 0.03
+
     return processed_data_line
 
 
 def line_node_dataframe(road_line_df):
     node_information = []
+    node_data = pd.DataFrame(node_information)
 
     for index, row in road_line_df.iterrows():
         for i in range(len(row["Coordinates List"])):
@@ -83,11 +89,14 @@ def line_node_dataframe(road_line_df):
                 connections.append(row["Coordinates List"][i + 1])
             node_information.append([coordinate_pair, connections])
 
-    node_data = pd.DataFrame(road_line_df)
+    node_data = pd.DataFrame(node_information)
+
+    print("Minutes since execution:", (time.time() - START_TIME) / 60)  # 0.04
 
     return node_data
 
 
+# Data to dictionary and list
 def node_dictionary(node_df):
     long_lat_pairs = {}
 
@@ -96,7 +105,7 @@ def node_dictionary(node_df):
     for index, row in node_df.iterrows():
         long_lat_coord = row[0]
 
-        if long_lat_coord in long_lat_pairs.keys():
+        if long_lat_coord in long_lat_pairs:
             long_lat_pairs[long_lat_coord].append(index)
 
             if long_lat_coord not in multiple_index_pairs:
@@ -105,9 +114,12 @@ def node_dictionary(node_df):
         else:
             long_lat_pairs[long_lat_coord] = [index]
 
+    print("Minutes since execution:", (time.time() - START_TIME) / 60)  # 0.3
+
     return long_lat_pairs, multiple_index_pairs
 
 
+# Set boolean value for intersection nodes
 def intersection_node_check(node_df, node_dict, index_pairs):
     node_df[2] = True
     node_df[3] = False
@@ -123,10 +135,10 @@ def intersection_node_check(node_df, node_dict, index_pairs):
         first_index = index_list[0]
 
         for second_index in index_list[1:]:
-            all_connections = list(set(node_df.at[first_index, 1] + node_df.at[second_index, 1]))
-            node_df.at[first_index, 1] = all_connections
-            node_df.at[second_index, 2] = False
-            index_pairs[pair] = [first_index]
+            all_connections = list(set(node_df.iat[first_index, 1] + node_df.iat[second_index, 1]))
+            node_df.iat[first_index, 1] = all_connections
+            node_df.iat[second_index, 2] = False
+            node_dict[pair] = [first_index]
 
     for index, row in node_df.iterrows():
         if len(row[1]) != 2:
@@ -137,15 +149,15 @@ def intersection_node_check(node_df, node_dict, index_pairs):
             if row[3]:
                 continue
             else:
-                if len(node_df.at[index, 1]) >= 2:
-                    connection1 = node_df.at[index, 1][0]
-                    connection2 = node_df.at[index, 1][1]
-                    index1 = lat_long_pairs[connection1][0]
-                    index2 = lat_long_pairs[connection2][0]
-                    node_df.at[index1, 1].remove(node_df.at[index, 0])
-                    node_df.at[index2, 1].remove(node_df.at[index, 0])
-                    node_df.at[index1, 1] = list(set(node_df.at[index1, 1] + [node_df.at[index2, 0]]))
-                    node_df.at[index2, 1] = list(set([node_df.at[index1, 0]] + node_df.at[index2, 1]))
+                if len(node_df.iat[index, 1]) >= 2:
+                    connection1 = node_df.iat[index, 1][0]
+                    connection2 = node_df.iat[index, 1][1]
+                    index1 = node_dict[connection1][0]
+                    index2 = node_dict[connection2][0]
+                    node_df.at[index1, 1].remove(node_df.iat[index, 0])
+                    node_df.at[index2, 1].remove(node_df.iat[index, 0])
+                    node_df.at[index1, 1] = list(set(node_df.iat[index1, 1] + [node_df.iat[index2, 0]]))
+                    node_df.at[index2, 1] = list(set([node_df.iat[index1, 0]] + node_df.iat[index2, 1]))
 
     index_list = []
 
@@ -156,6 +168,8 @@ def intersection_node_check(node_df, node_dict, index_pairs):
     for index in index_list:
         node_df = node_df.drop(index, axis=0)
 
+    print("Minutes since execution:", (time.time() - START_TIME) / 60)  # 2.6
+
     return node_df
 
 
@@ -164,12 +178,15 @@ def intersection_node_dictionary(node_df):
 
     for index, row in node_df.iterrows():
         if row["Is Intersection"]:
-            row_node = Node(None, None, row["Long/Lat Coordinates"], row["Connections"])
+            row_node = Node(None, None, row["Long/Lat Coordinates"], row["Connections"], None)
             intersection_node_dict[row["Long/Lat Coordinates"]] = row_node
+
+    print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
     return intersection_node_dict
 
 
+# General classes
 class Node:
 
     def __init__(self, road_condition, elevation, long_lat, connections, node_id):
@@ -267,6 +284,7 @@ class SolidStateTree:
         self.root = root
 
 
+# General functions
 def calculate_cost(matrix):
     """Calculates the reduction cost of the matrix. Returns the adjacency matrix (reduced matrix) and the associated
     cost. """
@@ -349,6 +367,7 @@ def heuristic(long1, lat1, long2, lat2):
     return math.sqrt((lat2 - lat1) ** 2 + (long2 - long1) ** 2)
 
 
+# Algorithims
 def node_to_node_search(start_node, goal):
     open_list = [start_node]
     closed_list = []
@@ -398,8 +417,10 @@ def node_to_node_search(start_node, goal):
             if not found:
                 tree_dict[sub_node] = level + 1
 
-            sub_node.g = heuristic(current_node.long_lat[0], current_node.long_lat[1], sub_node.long_lat[0], sub_node.long_lat[1]) + current_node.g
-            sub_node.h = heuristic(sub_node.long_lat[0], sub_node.long_lat[1], goal.long_lat[0], goal.long_lat[1]) * 4146.282847732093
+            sub_node.g = heuristic(current_node.long_lat[0], current_node.long_lat[1], sub_node.long_lat[0],
+                                   sub_node.long_lat[1]) + current_node.g
+            sub_node.h = heuristic(sub_node.long_lat[0], sub_node.long_lat[1], goal.long_lat[0],
+                                   goal.long_lat[1]) * 4146.282847732093
             sub_node.f = sub_node.g + sub_node.h
 
             open_list.append(sub_node)
@@ -574,53 +595,74 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
 
 def main():
-    road_line_nodes = road_line_processing(BUILDING_FILE_WITH_ELEVATION)
-    node_data = line_node_dataframe(road_line_nodes)
-    node_coord_pairs, multi_index_pairs = node_dictionary(node_data)
-    node_data = intersection_node_check(node_data, node_coord_pairs, multi_index_pairs)
+    if LOAD_DATA:
+        road_line_nodes = pd.read_csv("0_processed_road_lines", sep=',')
+        node_data_wo_intersections = pd.read_csv("1_processed_road_line_nodes", sep=',')
+        node_coord_pairs, multi_index_pairs = node_dictionary(node_data_wo_intersections)
+        node_data = pd.read_csv("2_processed_road_line_nodes_w_intersections", sep=',')
+
+    else:
+        road_line_nodes = road_line_processing(ROAD_LINE_DATA)
+        road_line_nodes.to_csv("0_processed_road_lines", encoding='utf-8', index=False)
+
+        node_data = line_node_dataframe(road_line_nodes)
+        node_data.to_csv("1_processed_road_line_nodes", encoding='utf-8', index=False)
+
+        node_coord_pairs, multi_index_pairs = node_dictionary(node_data)
+
+        node_data = intersection_node_check(node_data, node_coord_pairs, multi_index_pairs)
+        node_data.to_csv("2_processed_road_line_nodes_w_intersection", encoding='utf-8', index=False)
 
     node_data.reset_index().drop("index", axis=1)
     node_data = node_data.reset_index()
     node_data = node_data.drop("index", axis=1)
-    node_data = node_data.drop(2, axis=1)
+    node_data = node_data.drop('2', axis=1)
     node_data = node_data.rename(
-        columns={0: "Long/Lat Coordinates", 1: "Connections", 3: "Is Intersection", })
+        columns={'0': "Long/Lat Coordinates", '1': "Connections", '3': "Is Intersection", })
 
     intersection_dict = intersection_node_dictionary(node_data)
 
     house_ids = []
 
     random.seed(42)
+
     for i in range(10):
         house_ids.append(random.randint(0, len(BUILDING_FILE_WITH_ELEVATION)))
 
-    nearest_intersections = []
+    print((33.9853493, -11.3905214) in node_coord_pairs)
 
+    nearest_intersections = []
     for house_id in house_ids:
-        print(house_id)
         coordinates = list(BUILDING_FILE_WITH_ELEVATION.loc[house_id, "geometry"].coords)
         long = coordinates[0][0]  # Contains max 7 decimal points
         lat = coordinates[0][1]  # Contains max 7 decimal points
-        print(long, lat)
+
         elevation = BUILDING_FILE_WITH_ELEVATION.at[house_id, "SAMPLE_1"]
         near_intersection = None
         near_intersection_dist = math.inf
+
         for index, row in node_data.iterrows():
             if row["Is Intersection"]:
-                node_long = row["Long/Lat Coordinates"][0]
-                node_lat = row["Long/Lat Coordinates"][1]
-                if near_intersection_dist > heuristic(lat, long, node_lat, node_long):
-                    near_intersection_dist = heuristic(lat, long, node_lat, node_long)
-                    near_intersection = intersection_dict[row["Long/Lat Coordinates"]]
+                node_long = eval(row["Long/Lat Coordinates"])[0]
+                node_lat = eval(row["Long/Lat Coordinates"])[1]
+
+                heur = heuristic(long, lat, node_long, node_lat)
+                if near_intersection_dist > heur:
+                    near_intersection_dist = heur
+                    near_intersection = intersection_dict[(node_long, node_lat)]
         nearest_intersections.append(near_intersection)
 
+    print(nearest_intersections)
     graph = {}
+
     for intersection in nearest_intersections:
         houses_completed = []
         houses_visited = []
+
         for i in range(3):
             smallest_dist = math.inf
             closest_house = None
+
             for house_to_go in nearest_intersections:
                 if house_to_go not in houses_completed and house_to_go != intersection:
                     dist = heuristic(house_to_go.long_lat[0], house_to_go.long_lat[1], intersection.long_lat[0],
@@ -628,7 +670,6 @@ def main():
                     if dist < smallest_dist:
                         smallest_dist = dist
                         closest_house = house_to_go
-            print(closest_house)
             cost = node_to_node_search(closest_house, intersection)
             houses_completed.append(closest_house)
             houses_visited.append((closest_house, cost))
