@@ -541,8 +541,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
     return_val = []
 
     while not priority_queue.isEmpty():
-        search_solid_state_tree(root)
-        print("Hey! Checking priority queue...")
+        # search_solid_state_tree(root)
+        # print("Hey! Checking priority queue...")
 
         parent_state, cost = priority_queue.pop_wo_matrix()
         # print(parent_state)
@@ -568,7 +568,6 @@ def space_state_algorithm(start_node, original_matrix, graph):
             if not root_connection:
                 continue
 
-
             parent_matrix_copy = copy.deepcopy(parent_matrix)
 
             parent_copy_explored = explore_edge(parent.id, parent.id, root.node.id, parent_matrix_copy)
@@ -581,10 +580,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
             if not priority_queue.isEmpty():
                 next_node, next_node_cost = priority_queue.peek()
 
-
-
                 if branch_cost <= next_node_cost:
-                    if branch_cost < first_branch_cost*2:
+                    if branch_cost < first_branch_cost * 2:
                         while parent_state is not None:
                             return_val.append(parent_state.node.id)
                             parent_state = parent_state.parent_node
@@ -597,10 +594,9 @@ def space_state_algorithm(start_node, original_matrix, graph):
                         return_val = first_branch
                         break
 
-            
             if priority_queue.isEmpty():
-                if first_branch_cost*2 < lowest_branch_cost:
-                    print("Returning first branch...")
+                if first_branch_cost * 2 < lowest_branch_cost:
+                    # print("Returning first branch...")
                     return_val = first_branch
                 else:
                     return_val = lowest_branch
@@ -617,18 +613,18 @@ def space_state_algorithm(start_node, original_matrix, graph):
                 lowest_branch.reverse()
                 lowest_branch.append(0)
 
-            print("Going to the top of the loop...")
+            # print("Going to the top of the loop...")
 
             continue
 
         if cost > lowest_branch_cost:
             return_val = lowest_branch
-            print("Found lowest cost")
+            # print("Found lowest cost")
             break
-        print("Going on down...")
+        # print("Going on down...")
 
         if len(parent.connections) == 1:
-            print("Backtracking...")
+            # print("Backtracking...")
             num_of_backtracks = 1
 
         for sub_node in parent.connections:
@@ -670,19 +666,23 @@ def space_state_algorithm(start_node, original_matrix, graph):
                     [final_list[parent_index], item, original_matrix[final_list[parent_index]][item]])
                 parent_index += 1
 
+
+
     else:
         matrix_insert = 0
         for item in closed_list:
             if len(closed_list) - len(final_list) < len(closed_list):
-                visual_list[matrix_insert].insert(1, item.id)
+                visual_list.append(
+                    [final_list[matrix_insert], item.id, original_matrix[final_list[matrix_insert]][item.id]])
                 matrix_insert += 1
 
             final_list.append(item.id)
 
             if len(closed_list) - len(final_list) == 0:
-                visual_list[matrix_insert].insert(1, visual_list[matrix_insert][0])
-    print(final_list)
+                visual_list.append(
+                    [final_list[matrix_insert], item.id, original_matrix[final_list[matrix_insert]][item.id]])
     print(visual_list)
+
     return final_list, visual_list
 
 
@@ -871,13 +871,13 @@ def visualization(graph_data=None, path=None):
 def main():
     # General Parameters
     ALGORITHM = 4
-    TESTING = False
-    VISUALIZATION = True
+    TESTING = True
+    VISUALIZATION = False
     ideal_route = []
 
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 2
+        sample_number = 4
         data, ideal_route = sample_data(sample_number)
 
         graphical_data = Graph(data)

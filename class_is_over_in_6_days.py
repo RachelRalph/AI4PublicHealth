@@ -171,7 +171,8 @@ def intersection_node_dictionary(node_df):
 
 
 class Node:
-    def __init__(self, road_condition, elevation, long_lat, connections):
+
+    def __init__(self, road_condition, elevation, long_lat, connections, node_id):
         self.road_condition = road_condition
         self.elevation = elevation
         self.connections = connections
@@ -179,10 +180,10 @@ class Node:
         self.f = None
         self.g = None
         self.h = None
-        self.id = 10001
+        self.id = node_id
 
-    def convert_connections_for_graph(self, connections):
-        self.connections = connections
+    def convert_connections_for_graph(self):
+        self.connections = {}
 
 
 class Graph:
@@ -241,6 +242,7 @@ class PriorityQueue:
 
 
 class SolidStateNode:
+
     def __init__(self, parent_node, node_id, node, level, reduced_matrix, cost):
         self.node = node
         self.node_id = node_id
@@ -396,10 +398,8 @@ def node_to_node_search(start_node, goal):
             if not found:
                 tree_dict[sub_node] = level + 1
 
-            sub_node.g = heuristic(current_node.long_lat[0], current_node.long_lat[1], sub_node.long_lat[0],
-                                   sub_node.long_lat[1]) + current_node.g
-            sub_node.h = heuristic(sub_node.long_lat[0], sub_node.long_lat[1], goal.long_lat[0],
-                                   goal.long_lat[1]) * 4146.282847732093
+            sub_node.g = heuristic(current_node.long_lat[0], current_node.long_lat[1], sub_node.long_lat[0], sub_node.long_lat[1]) + current_node.g
+            sub_node.h = heuristic(sub_node.long_lat[0], sub_node.long_lat[1], goal.long_lat[0], goal.long_lat[1]) * 4146.282847732093
             sub_node.f = sub_node.g + sub_node.h
 
             open_list.append(sub_node)
@@ -640,19 +640,20 @@ def main():
     id_num = 0
 
     for node in nodes_list:
-        new_node = Node(None, None, node.long_lat, None)
-        new_node.id = id_num
+        new_node = Node(None, None, node.long_lat, None, id_num)
         connections = {}
-        for house_cost in graph[node]:
-            print(house_cost[0], house_cost[1])
-            connections[house_cost[0]] = house_cost[1]
-
-        new_node.convert_connections_for_graph(connections)
         nodes_for_graph.append(new_node)
         id_num += 1
 
-    for key in nodes_for_graph[0].connections.keys():
-        print(key.long_lat)
+    for graph_node in nodes_for_graph:
+        graph_node.convert_connections_for_graph()
+        for node in nodes_list:
+            if node.long_lat == graph_node.long_lat:
+                for connection in graph[node]:
+                    for other_graph_node in nodes_for_graph:
+                        if connection[0].long_lat == other_graph_node.long_lat:
+                            graph_node.connections[other_graph_node] = connection[1]
+                            print("Connected nodes")
 
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
