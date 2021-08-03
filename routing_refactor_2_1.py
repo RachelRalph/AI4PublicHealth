@@ -830,7 +830,7 @@ def visualization(graph_data=None, path=None):
 
         pos = nx.spring_layout(G)
 
-        nx.draw(G, pos, with_labels=True, connectionstyle="arc3,rad=0.1")
+        nx.draw(G, pos, with_labels=True, connectionstyle="arc3,rad=0.1", node_color='orange', font_color='white')
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
         # plt.savefig("simple_path.png")  # save as png
 
@@ -861,7 +861,7 @@ def visualization(graph_data=None, path=None):
 
         pos = nx.spring_layout(H)
 
-        nx.draw(H, pos, with_labels=True, connectionstyle="arc3,rad=0.1")
+        nx.draw(H, pos, with_labels=True, connectionstyle="arc3,rad=0.1", node_color='orange', font_color='white')
         nx.draw_networkx_edge_labels(H, pos, edge_labels=edge_labels_dict)
         # plt.savefig("simple_path.png")  # save as png
 
@@ -872,25 +872,25 @@ def main():
     # General Parameters
     ALGORITHM = 4
     TESTING = True
-    VISUALIZATION = False
+    VISUALIZATION = True
     ideal_route = []
 
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 4
+        sample_number = 3
         data, ideal_route = sample_data(sample_number)
 
         graphical_data = Graph(data)
         matrix_data = graphical_data.convert_to_matrix()
 
         # For sample 3, as the bidirectional weights are unequal, force the matrix to be the following
-        if sample_number == 3:
+        """if sample_number == 3:
             matrix_data = [[math.inf, 20, 30, 10, 11],
                            [15, math.inf, 16, 4, 2],
                            [3, 5, math.inf, 2, 4],
                            [19, 6, 18, math.inf, 3],
                            [16, 4, 7, 16, math.inf]]
-            matrix_data = np.array(matrix_data)
+            matrix_data = np.array(matrix_data)"""
 
     # If we are using the dummy data set, do the following.
     else:

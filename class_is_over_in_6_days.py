@@ -181,7 +181,12 @@ def intersection_node_dictionary(node_df):
     for index, row in node_df.iterrows():
         if row["Is Intersection"]:
             row_node = Node(None, None, eval(row["Long/Lat Coordinates"]), eval(row["Connections"]), None)
-            intersection_node_dict[eval(row["Long/Lat Coordinates"])] = row_node
+
+            if LOAD_DATA:
+                intersection_node_dict[eval(row["Long/Lat Coordinates"])] = row_node
+
+            else:
+                intersection_node_dict[row["Long/Lat Coordinates"]] = row_node
 
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
@@ -570,6 +575,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
                 priority_queue.push_wo_matrix(state_node, cost)
 
         closed_list.append(parent)
+    closed_list = lowest_branch
 
     if len(return_val) > 0:
         parent_index = 0
@@ -589,7 +595,9 @@ def space_state_algorithm(start_node, original_matrix, graph):
                 visual_list.append(
                     [final_list[matrix_insert], item.id, original_matrix[final_list[matrix_insert]][item.id]])
                 matrix_insert += 1
+
             final_list.append(item.id)
+
             if len(closed_list) - len(final_list) == 0:
                 visual_list.append(
                     [final_list[matrix_insert], item.id, original_matrix[final_list[matrix_insert]][item.id]])
@@ -617,7 +625,7 @@ def visualization(graph_data=None, path=None):
 
         pos = nx.spring_layout(G)
 
-        nx.draw(G, pos, with_labels=True, connectionstyle="arc3,rad=0.1")
+        nx.draw(G, pos, with_labels=True, connectionstyle="arc3,rad=0.1", node_color='orange', font_color='white')
         nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
         # plt.savefig("simple_path.png")  # save as png
 
@@ -648,7 +656,7 @@ def visualization(graph_data=None, path=None):
 
         pos = nx.spring_layout(H)
 
-        nx.draw(H, pos, with_labels=True, connectionstyle="arc3,rad=0.1")
+        nx.draw(H, pos, with_labels=True, connectionstyle="arc3,rad=0.1", node_color='orange', font_color='white')
         nx.draw_networkx_edge_labels(H, pos, edge_labels=edge_labels_dict)
         # plt.savefig("simple_path.png")  # save as png
 
@@ -679,7 +687,12 @@ def main():
     node_data.reset_index().drop("index", axis=1)
     node_data = node_data.reset_index()
     node_data = node_data.drop("index", axis=1)
-    node_data = node_data.drop('2', axis=1)
+
+    if LOAD_DATA:
+        node_data = node_data.drop('2', axis=1)
+    else:
+        node_data = node_data.drop(2, axis=1)
+
     node_data = node_data.rename(
         columns={'0': "Long/Lat Coordinates", '1': "Connections", '3': "Is Intersection", })
 
@@ -703,12 +716,17 @@ def main():
 
         for index, row in node_data.iterrows():
             if row["Is Intersection"]:
-                node_long = eval(row["Long/Lat Coordinates"])[0]
-                node_lat = eval(row["Long/Lat Coordinates"])[1]
+                if LOAD_DATA:
+                    node_long = eval(row["Long/Lat Coordinates"])[0]
+                    node_lat = eval(row["Long/Lat Coordinates"])[1]
 
-                heur = heuristic(long, lat, node_long, node_lat)
-                if near_intersection_dist > heur:
-                    near_intersection_dist = heur
+                else:
+                    node_long = row["Long/Lat Coordinates"][0]
+                    node_lat = row["Long/Lat Coordinates"][1]
+
+                huer = heuristic(long, lat, node_long, node_lat)
+                if near_intersection_dist > huer:
+                    near_intersection_dist = huer
                     near_intersection = intersection_dict[(node_long, node_lat)]
         nearest_intersections.append(near_intersection)
 
@@ -760,12 +778,14 @@ def main():
 
     final_path, visual_path = space_state_algorithm(0, matrix, graphical_data)
 
-    print(final_path)
-    print()
-    print(visual_path)
+
 
     if VISUALIZATION:
         visualization(graph_data=graphical_data, path=visual_path)
+
+    print(final_path)
+    print()
+    print(np.array(visual_path))
 
     print("\n------------------------")
     print("Minutes since execution:", (time.time() - START_TIME) / 60)
