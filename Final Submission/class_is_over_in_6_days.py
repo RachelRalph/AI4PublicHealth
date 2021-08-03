@@ -530,16 +530,14 @@ def space_state_algorithm(start_node, original_matrix, graph):
     return_val = []
 
     while not priority_queue.isEmpty():
-        # search_solid_state_tree(root)
-        # print("Hey! Checking priority queue...")
 
         parent_state, cost = priority_queue.pop_wo_matrix()
-        # print(parent_state)
+
+        print("First branch: ", first_branch)
+        print("Lowest branch: ", lowest_branch)
 
         parent = parent_state.node
         parent_matrix = parent_state.reduced_matrix
-
-        # print("PARENT LEVEL: " , parent_state.level)
         if parent_state.level >= graph.size() - 1 + num_of_backtracks:
             if len(first_branch) == 0:
                 first_branch_cost = parent_state.cost
@@ -548,6 +546,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
                     first_branch.append(next_state.node.id)
                     next_state = next_state.parent_node
                 first_branch.reverse()
+                lowest_branch = first_branch
 
             root_connection = False
             for connection in parent.connections:
@@ -574,7 +573,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
                         while parent_state is not None:
                             return_val.append(parent_state.node.id)
                             parent_state = parent_state.parent_node
-                        print("Return Value: ", return_val)
+                        #print("Return Value: ", return_val)
                         return_val.reverse()
                         return_val.append(0)
                         break
@@ -585,13 +584,13 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
             if priority_queue.isEmpty():
                 if first_branch_cost * 2 < lowest_branch_cost:
-                    print("Returning first branch...")
+                    #print("Returning first branch...")
                     return_val = first_branch
                 else:
                     return_val = lowest_branch
 
             if lowest_branch_cost > branch_cost:
-                print("Adding lowest branch...")
+                #print("Adding lowest branch...")
                 lowest_branch_cost = branch_cost
                 lowest_branch = []
                 lowest_state_node = parent_state
@@ -603,23 +602,21 @@ def space_state_algorithm(start_node, original_matrix, graph):
                 lowest_branch.reverse()
                 lowest_branch.append(0)
 
-            print("Going to the top of the loop...")
+            #print("Going to the top of the loop...")
 
             continue
 
         if cost > lowest_branch_cost:
             return_val = lowest_branch
-            print("Found lowest cost")
+            #print("Found lowest cost")
             break
-        print("Going on down...")
+        #print("Going on down...")
 
-        if len(parent.connections) == 1:
-            print("Backtracking...")
-            num_of_backtracks = 1
-
+        #if len(parent.connections) == 1:
+            #num_of_backtracks = 1
+        #print("Lowest Bracnh: ", lowest_branch)
         for sub_node in parent.connections:
             if sub_node not in parent_state.closedList or len(parent.connections) == 1:
-                print(sub_node.id)
                 # Set initial cost to that of the parent cost.
                 total_cost = cost
                 parent_matrix_copy = copy.deepcopy(parent_matrix)
@@ -645,6 +642,7 @@ def space_state_algorithm(start_node, original_matrix, graph):
                 priority_queue.push_wo_matrix(state_node, cost)
 
         closed_list.append(parent)
+    closed_list = lowest_branch
 
     if len(return_val) > 0:
         parent_index = 0
@@ -662,80 +660,20 @@ def space_state_algorithm(start_node, original_matrix, graph):
         for item in closed_list:
             if len(closed_list) - len(final_list) < len(closed_list):
                 visual_list.append(
-                    [final_list[matrix_insert], item.id, original_matrix[final_list[matrix_insert]][item.id]])
+                    [final_list[matrix_insert], item, original_matrix[final_list[matrix_insert]][item]])
                 matrix_insert += 1
 
-            final_list.append(item.id)
+            final_list.append(item)
 
             if len(closed_list) - len(final_list) == 0:
                 visual_list.append(
-                    [final_list[matrix_insert], item.id, original_matrix[final_list[matrix_insert]][item.id]])
+                    [final_list[matrix_insert], item, original_matrix[final_list[matrix_insert]][item]])
 
     return final_list, visual_list
-
-
-def visualization(graph_data=None, path=None):
-    if graph_data is not None:
-        plt.figure(1)
-        G = nx.Graph()
-
-        node_list = []
-        edge_list = []
-        edge_labels_dict = {}
-
-        for node in graph_data.nodes:
-            node_list.append(node.id)
-            for connections in node.connections:
-                edge_list.append([node.id, connections.id])
-                edge_labels_dict[(node.id, connections.id)] = node.connections[connections]
-
-        G.add_nodes_from(node_list)
-        G.add_edges_from(edge_list)
-
-        pos = nx.spring_layout(G)
-
-        nx.draw(G, pos, with_labels=True, connectionstyle="arc3,rad=0.1", node_color='orange', font_color='white')
-        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels_dict)
-        # plt.savefig("simple_path.png")  # save as png
-
-    if path is not None:
-        plt.figure(2)
-        H = nx.Graph()
-
-        node_list = []
-        edge_list = []
-        edge_labels_dict = {}
-
-        for row in path:
-            parent_node = row[0]
-            sub_node = row[1]
-            edge_weight = row[2]
-
-            node_list.append(parent_node)
-            edge_list.append([parent_node, sub_node])
-
-            edge_labels_dict[(parent_node, sub_node)] = edge_weight
-
-        """print(node_list)
-        print(edge_list)
-        print(edge_labels_dict)"""
-
-        H.add_nodes_from(node_list)
-        H.add_edges_from(edge_list)
-
-        pos = nx.spring_layout(H)
-
-        nx.draw(H, pos, with_labels=True, connectionstyle="arc3,rad=0.1", node_color='orange', font_color='white')
-        nx.draw_networkx_edge_labels(H, pos, edge_labels=edge_labels_dict)
-        # plt.savefig("simple_path.png")  # save as png
-
-    plt.show()
-
 
 def prims_algorithm(start_node, original_matrix, graph):
     # Make a copy of the original matrix, this is needed for the Prims algorithm.
     original_matrix_copy = copy.deepcopy(original_matrix)
-    print(np.array(original_matrix_copy))
 
     # Reduce the original matrix.
     initial_cost, cost_matrix = calculate_cost(original_matrix)
@@ -825,8 +763,10 @@ def prims_algorithm(start_node, original_matrix, graph):
     return visual_list, visual_list
 
 
+
 def main():
     VISUALIZATION = True
+    ALGORITHM = 0
 
     if LOAD_DATA:
         road_line_nodes = pd.read_csv("0_processed_road_lines", sep=',')
@@ -910,11 +850,24 @@ def main():
                         if connection[0].long_lat == other_graph_node.long_lat:
                             graph_node.connections[other_graph_node] = connection[1]
 
+    for graph_node in nodes_for_graph:
+        for connection in graph_node.connections:
+            for other_graph_node in nodes_for_graph:
+                if other_graph_node in graph_node.connections.keys() and graph_node not in other_graph_node.connections.keys():
+                    other_graph_node.connections[graph_node] = graph_node.connections[other_graph_node]
+
     graphical_data = Graph(nodes_for_graph)
 
     matrix = graphical_data.convert_to_matrix()
 
-    final_path, visual_path = prims_algorithm(0, matrix, graphical_data)
+    if ALGORITHM == 0:
+        final_path, visual_path = space_state_algorithm(0, matrix, graphical_data)
+
+    else:
+        final_path, visual_path = prims_algorithm(0, matrix, graphical_data)
+
+
+        
 
     if VISUALIZATION:
         visualization(graph_data=graphical_data, path=visual_path)
