@@ -681,7 +681,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
             if len(closed_list) - len(final_list) == 0:
                 visual_list[matrix_insert].insert(1, visual_list[matrix_insert][0])
-
+    print(final_list)
+    print(visual_list)
     return final_list, visual_list
 
 
@@ -876,7 +877,7 @@ def main():
 
     # If we want to test the code using our sample matrices.
     if TESTING:
-        sample_number = 4
+        sample_number = 2
         data, ideal_route = sample_data(sample_number)
 
         graphical_data = Graph(data)

@@ -1,5 +1,4 @@
-# Beverly named this file.
-
+# Imports
 import os
 import geopandas as gpd
 import pandas as pd
@@ -11,7 +10,9 @@ import copy
 import sys
 import random
 from operator import attrgetter
+import time
 
+# # Get script and dataset file paths.
 SCRIPT_PATH = os.path.dirname(__file__)
 
 # Read the road line data .shp file via geopandas and store as a pandas dataframe.
@@ -28,7 +29,6 @@ ROAD_POINT_WITH_ELEVATION_DATA = pd.DataFrame(ROAD_POINT_WITH_ELEVATION_DATA)
 BUILDING_FILE_WITH_ELEVATION = os.path.join(SCRIPT_PATH, "Datasets/MZUZU_buildings_with_elevation.shp")
 BUILDING_FILE_WITH_ELEVATION = gpd.read_file(BUILDING_FILE_WITH_ELEVATION)
 BUILDING_FILE_WITH_ELEVATION = pd.DataFrame(BUILDING_FILE_WITH_ELEVATION)
-
 
 # Get the start time.
 START_TIME = time.time()
@@ -71,7 +71,7 @@ def road_line_processing(road_line_df):
 def line_node_dataframe(road_line_df):
     node_information = []
 
-    for index, row in road_line_nodes.iterrows():
+    for index, row in road_line_df.iterrows():
         for i in range(len(row["Coordinates List"])):
             connections = []
             coordinate_pair = row["Coordinates List"][i]
@@ -83,7 +83,7 @@ def line_node_dataframe(road_line_df):
                 connections.append(row["Coordinates List"][i + 1])
             node_information.append([coordinate_pair, connections])
 
-    node_data = pd.DataFrame(node_data)
+    node_data = pd.DataFrame(road_line_df)
 
     return node_data
 
@@ -105,11 +105,73 @@ def node_dictionary(node_df):
         else:
             long_lat_pairs[long_lat_coord] = [index]
 
+    return long_lat_pairs, multiple_index_pairs
 
-def intersection_node_check(node_df, node_dict, )
+
+def intersection_node_check(node_df, node_dict, index_pairs):
+    node_df[2] = True
+    node_df[3] = False
+
+    min_length = math.inf
+
+    for pair in index_pairs:
+        index_list = node_dict[pair]
+
+        if len(index_list) < min_length:
+            min_length = len(index_list)
+
+        first_index = index_list[0]
+
+        for second_index in index_list[1:]:
+            all_connections = list(set(node_df.at[first_index, 1] + node_df.at[second_index, 1]))
+            node_df.at[first_index, 1] = all_connections
+            node_df.at[second_index, 2] = False
+            index_pairs[pair] = [first_index]
+
+    for index, row in node_df.iterrows():
+        if len(row[1]) != 2:
+            node_df.iat[index, 3] = True
+
+    for index, row in node_df.iterrows():
+        if row[2]:
+            if row[3]:
+                continue
+            else:
+                if len(node_df.at[index, 1]) >= 2:
+                    connection1 = node_df.at[index, 1][0]
+                    connection2 = node_df.at[index, 1][1]
+                    index1 = lat_long_pairs[connection1][0]
+                    index2 = lat_long_pairs[connection2][0]
+                    node_df.at[index1, 1].remove(node_df.at[index, 0])
+                    node_df.at[index2, 1].remove(node_df.at[index, 0])
+                    node_df.at[index1, 1] = list(set(node_df.at[index1, 1] + [node_df.at[index2, 0]]))
+                    node_df.at[index2, 1] = list(set([node_df.at[index1, 0]] + node_df.at[index2, 1]))
+
+    index_list = []
+
+    for index, row in node_df.iterrows():
+        if not row[2]:
+            index_list.append(index)
+
+    for index in index_list:
+        node_df = node_df.drop(index, axis=0)
+
+    return node_df
+
+
+def intersection_node_dictionary(node_df):
+    intersection_node_dict = {}
+
+    for index, row in node_df.iterrows():
+        if row["Is Intersection"]:
+            row_node = Node(None, None, row["Long/Lat Coordinates"], row["Connections"])
+            intersection_node_dict[row["Long/Lat Coordinates"]] = row_node
+
+    return intersection_node_dict
+
 
 class Node:
-    def __init__(self, road_condition, elevation, long_lat, connections, id):
+    def __init__(self, road_condition, elevation, long_lat, connections):
         self.road_condition = road_condition
         self.elevation = elevation
         self.connections = connections
@@ -117,7 +179,7 @@ class Node:
         self.f = None
         self.g = None
         self.h = None
-        self.id = id
+        self.id = 10001
 
     def convert_connections_for_graph(self, connections):
         self.connections = connections
@@ -280,127 +342,6 @@ def search_solid_state_tree(root):
     for child in root.children:
         search_solid_state_tree(child)
 
-
-
-
-
-node_data[2] = True
-
-min_length = math.inf
-for pair in multiple_index_pairs:
-    index_list = lat_long_pairs[pair]
-
-    if len(index_list) < min_length:
-        min_length = len(index_list)
-
-    first_index = index_list[0]
-
-    for second_index in index_list[1:]:
-        all_connections = list(set(node_data.at[first_index, 1] + node_data.at[second_index, 1]))
-        node_data.at[first_index, 1] = all_connections
-        node_data.at[second_index, 2] = False
-        lat_long_pairs[pair] = [first_index]
-
-node_data[3] = False
-
-for index, row in node_data.iterrows():
-    if len(row[1]) != 2:
-        node_data.iat[index, 3] = True
-
-for index, row in node_data.iterrows():
-    if row[2]:
-        if row[3]:
-            continue
-        else:
-            if len(node_data.at[index, 1]) >= 2:
-                connection1 = node_data.at[index, 1][0]
-                connection2 = node_data.at[index, 1][1]
-                index1 = lat_long_pairs[connection1][0]
-                index2 = lat_long_pairs[connection2][0]
-                node_data.at[index1, 1].remove(node_data.at[index, 0])
-                node_data.at[index2, 1].remove(node_data.at[index, 0])
-                node_data.at[index1, 1] = list(set(node_data.at[index1, 1] + [node_data.at[index2, 0]]))
-                node_data.at[index2, 1] = list(set([node_data.at[index1, 0]] + node_data.at[index2, 1]))
-
-node_data.reset_index().drop("index", axis=1)
-
-node_data = node_data.reset_index()
-node_data = node_data.drop("index", axis=1)
-node_data = node_data.drop(2, axis=1)
-
-node_data = node_data.rename(
-    columns={0: "Long/Lat Coordinates", 1: "Connections", 3: "Is Intersection", })
-
-node_dictionary = {}
-for index, row in node_data.iterrows():
-    if row["Is Intersection"]:
-        row_node = Node(None, None, row["Long/Lat Coordinates"], row["Connections"])
-        node_dictionary[row["Long/Lat Coordinates"]] = row_node
-
-house_ids = []
-
-random.seed(42)
-for i in range(10):
-    house_ids.append(random.randint(0, len(BUILDING_FILE_WITH_ELEVATION)))
-
-nearest_intersections = []
-
-for house_id in house_ids:
-    print(house_id)
-    coordinates = list(BUILDING_FILE_WITH_ELEVATION.loc[house_id, "geometry"].coords)
-    long = coordinates[0][0]  # Contains max 7 decimal points
-    lat = coordinates[0][1]  # Contains max 7 decimal points
-    print(long, lat)
-    elevation = BUILDING_FILE_WITH_ELEVATION.at[house_id, "SAMPLE_1"]
-    near_intersection = None
-    near_intersection_dist = math.inf
-    for index, row in node_data.iterrows():
-        if row["Is Intersection"]:
-            node_long = row["Long/Lat Coordinates"][0]
-            node_lat = row["Long/Lat Coordinates"][1]
-            if near_intersection_dist > heuristic(lat, long, node_lat, node_long):
-                near_intersection_dist = heuristic(lat, long, node_lat, node_long)
-                near_intersection = node_dictionary[row["Long/Lat Coordinates"]]
-    nearest_intersections.append(near_intersection)
-
-graph = {}
-for intersection in nearest_intersections:
-    houses_completed = []
-    houses_visited = []
-    for i in range(3):
-        smallest_dist = math.inf
-        closest_house = None
-        for house_to_go in nearest_intersections:
-            if house_to_go not in houses_completed and house_to_go != intersection:
-                dist = heuristic(house_to_go.long_lat[0], house_to_go.long_lat[1], intersection.long_lat[0],
-                                 intersection.long_lat[1])
-                if dist < smallest_dist:
-                    smallest_dist = dist
-                    closest_house = house_to_go
-        cost = node_to_node_search(closest_house, intersection)
-        houses_completed.append(closest_house)
-        houses_visited.append((closest_house, cost))
-        graph[intersection] = houses_visited
-
-nodes_list = graph.keys()
-
-nodes_for_graph = []
-id_num = 0
-
-for node in nodes_list:
-    new_node = Node(None, None, node.long_lat, None)
-    new_node.id = id_num
-    connections = {}
-    for house_cost in graph[node]:
-        print(house_cost[0], house_cost[1])
-        connections[house_cost[0]] = house_cost[1]
-
-    new_node.convert_connections_for_graph(connections)
-    nodes_for_graph.append(new_node)
-    id_num += 1
-
-for key in nodes_for_graph[0].connections.keys():
-    print(key.long_lat)
 
 def heuristic(long1, lat1, long2, lat2):
     return math.sqrt((lat2 - lat1) ** 2 + (long2 - long1) ** 2)
@@ -635,7 +576,86 @@ def space_state_algorithm(start_node, original_matrix, graph):
 def main():
     road_line_nodes = road_line_processing(BUILDING_FILE_WITH_ELEVATION)
     node_data = line_node_dataframe(road_line_nodes)
-    node_dictionary(node_data)
+    node_coord_pairs, multi_index_pairs = node_dictionary(node_data)
+    node_data = intersection_node_check(node_data, node_coord_pairs, multi_index_pairs)
+
+    node_data.reset_index().drop("index", axis=1)
+    node_data = node_data.reset_index()
+    node_data = node_data.drop("index", axis=1)
+    node_data = node_data.drop(2, axis=1)
+    node_data = node_data.rename(
+        columns={0: "Long/Lat Coordinates", 1: "Connections", 3: "Is Intersection", })
+
+    intersection_dict = intersection_node_dictionary(node_data)
+
+    house_ids = []
+
+    random.seed(42)
+    for i in range(10):
+        house_ids.append(random.randint(0, len(BUILDING_FILE_WITH_ELEVATION)))
+
+    nearest_intersections = []
+
+    for house_id in house_ids:
+        print(house_id)
+        coordinates = list(BUILDING_FILE_WITH_ELEVATION.loc[house_id, "geometry"].coords)
+        long = coordinates[0][0]  # Contains max 7 decimal points
+        lat = coordinates[0][1]  # Contains max 7 decimal points
+        print(long, lat)
+        elevation = BUILDING_FILE_WITH_ELEVATION.at[house_id, "SAMPLE_1"]
+        near_intersection = None
+        near_intersection_dist = math.inf
+        for index, row in node_data.iterrows():
+            if row["Is Intersection"]:
+                node_long = row["Long/Lat Coordinates"][0]
+                node_lat = row["Long/Lat Coordinates"][1]
+                if near_intersection_dist > heuristic(lat, long, node_lat, node_long):
+                    near_intersection_dist = heuristic(lat, long, node_lat, node_long)
+                    near_intersection = intersection_dict[row["Long/Lat Coordinates"]]
+        nearest_intersections.append(near_intersection)
+
+    graph = {}
+    for intersection in nearest_intersections:
+        houses_completed = []
+        houses_visited = []
+        for i in range(3):
+            smallest_dist = math.inf
+            closest_house = None
+            for house_to_go in nearest_intersections:
+                if house_to_go not in houses_completed and house_to_go != intersection:
+                    dist = heuristic(house_to_go.long_lat[0], house_to_go.long_lat[1], intersection.long_lat[0],
+                                     intersection.long_lat[1])
+                    if dist < smallest_dist:
+                        smallest_dist = dist
+                        closest_house = house_to_go
+            print(closest_house)
+            cost = node_to_node_search(closest_house, intersection)
+            houses_completed.append(closest_house)
+            houses_visited.append((closest_house, cost))
+            graph[intersection] = houses_visited
+
+    nodes_list = graph.keys()
+
+    nodes_for_graph = []
+    id_num = 0
+
+    for node in nodes_list:
+        new_node = Node(None, None, node.long_lat, None)
+        new_node.id = id_num
+        connections = {}
+        for house_cost in graph[node]:
+            print(house_cost[0], house_cost[1])
+            connections[house_cost[0]] = house_cost[1]
+
+        new_node.convert_connections_for_graph(connections)
+        nodes_for_graph.append(new_node)
+        id_num += 1
+
+    for key in nodes_for_graph[0].connections.keys():
+        print(key.long_lat)
+
+    print("\n------------------------")
+    print("Minutes since execution:", (time.time() - START_TIME) / 60)
 
 
 if __name__ == "__main__":
