@@ -1,4 +1,3 @@
-
 # Imports
 import os
 import geopandas as gpd
@@ -18,9 +17,9 @@ import pickle
 
 # Get the start time.
 START_TIME = time.time()
-LOAD_DATA = False
+LOAD_DATA = True
 
-# # Get script and dataset file paths.
+# Get script and dataset file paths.
 SCRIPT_PATH = os.path.dirname(__file__)
 
 # Read the building point data w/ elevation .shp file via geopandas and store as a pandas dataframe.
@@ -39,25 +38,30 @@ if not LOAD_DATA:
     ROAD_POINT_WITH_ELEVATION_DATA = gpd.read_file(ROAD_POINT_WITH_ELEVATION_PATH)
     ROAD_POINT_WITH_ELEVATION_DATA = pd.DataFrame(ROAD_POINT_WITH_ELEVATION_DATA)
 
-
 # Data processing
-
 """
-Note on Data preprocessing: the road node data in OpenStreetMaps is unusable because the bearings and distances of each node are incredibly unrealiable.
-The line data is much better, however for our algorithm to work, we must convert the line data into node data. Below is our code to process each road into a list of coordinates,
-And from there we use the roads to deduce each nodes connections (the nodes next to them on the roads), and which nodes are intersections. 
-
+Note on data preprocessing: 
+The road node data in OpenStreetMaps is unusable because the bearings and distances of each node are incredibly 
+unreliable. The line data is much better, however for our algorithm to work, we must convert the line data into node 
+data. Below is our code to process each road into a list of coordinates, and from there we use the roads to deduce 
+each nodes connections (the nodes next to them on the roads), and which nodes are intersections. 
 """
 def road_line_processing(road_line_df):
-    """Clean the .shp file that contains the route data. Create a second pandas data frame to store a processed
-        version of the original data from the .shp file. """
+    """Process road line data.
+    Clean the .shp file that contains the route data. Create a second Pandas DataFrame to store a processed version
+    of the original data from the .shp file. Returns the second Pandas DataFrame.
+    :param pd.DataFrame road_line_df: Pandas DataFrame that contains the road line data.
+    :returns: Pandas DataFrame containing the start, intermediate, and end coordinates contained within the road line data for each road.
+    """
 
     processed_data_line = []
 
-    for index, rows in road_line_df.iterrows(): #Stores Coordinates from geometry. 
+    # Stores coordinates from geometry.
+    for index, rows in road_line_df.iterrows():
         coordinates_line = road_line_df.iloc[index, 11]
         string_type = (type(coordinates_line))
 
+        # Exclude MultiString elements.
         if str(string_type) == "<class 'shapely.geometry.linestring.LineString'>":
             coordinates_line = list(coordinates_line.coords)
 
@@ -68,25 +72,39 @@ def road_line_processing(road_line_df):
 
             all_coord = []
 
-            for coordinate in coordinates_line: #Appends all coordinates from line_string into a list
+            # Appends all coordinates from the LineString geometry into a list.
+            for coordinate in coordinates_line:
                 all_coord.append(coordinate)
 
             processed_data_line.append(
                 (start_longitude_line, start_latitude_line, end_longitude_line, end_latitude_line, all_coord))
 
-    processed_data_line = pd.DataFrame(processed_data_line)#Moves into a dataframe with the start coordinates of every road, and a coordinate list containing all coordinates. 
+    # Convert to a DataFrame with the start coordinates of every road, and a coordinate list containing all coordinates.
+    processed_data_line = pd.DataFrame(processed_data_line)
     processed_data_line = processed_data_line.rename(
         columns={0: "Start Longitude", 1: "Start Latitude", 2: "End Longitude", 3: "End Latitude",
                  4: "Coordinates List"})
 
-    print("Minutes since execution:", (time.time() - START_TIME) / 60)  # 0.03
+    # Print the time taken to run the up to the current function.
+    print("Road Line Processing Time:", (time.time() - START_TIME) / 60)
 
-    return processed_data_line #Return data preprocessing line. 
+    # Return processed_data_line.
+    return processed_data_line
 
 
 def line_node_dataframe(road_line_df):
-    #This function creates a dataframe where each set of coordinates has it's own row, with the coordinates that it's connecting to (or next to on the road)
-    
+    """
+    Nodes from road line data.
+    This function creates a DataFrame where each set of coordinates has it's own row, with the coordinates that
+    it's connecting to (or next to on the road) .
+    # TODO: The following
+    Keyword arguments:
+        road_line_df: Pandas DataFrame containing the start, intermediate, and end coordinates
+    contained within the road line data for each road.
+    Returns:
+        node_data:
+    """
+
     node_information = []
 
     for index, row in road_line_df.iterrows():
@@ -108,10 +126,21 @@ def line_node_dataframe(road_line_df):
     return node_data
 
 
-#This takes the above dataframe and converts it into a dictionary where the latitude/longitude pairs are the keys, in order to decrease runtime.
-#This function also logs all nodes it processes more that once in the multiple index pairs list. Because a node was processed more than once, it must include more than one row,
-#ergo, multiple_index_pairs flags all the nodes that are intersections. 
 def node_dictionary(node_df):
+    """
+    Nodes from road line data.
+    This function converts the node_data into a dictionary where the longitude/latitude pairs are the keys. This
+    function also logs all nodes it processes more that once in the multiple index pairs list. Because a node was
+    processed more than once, it must include more than one row, ergo, multiple_index_pairs flags all the nodes that
+    are intersections.
+    # TODO: The following
+    Keyword arguments:
+        node_df: Pandas DataFrame containing the start, intermediate, and end coordinates
+    contained within the road line data for each road.
+    Returns:
+        node_data:
+    """
+
     long_lat_pairs = {}
 
     multiple_index_pairs = []
@@ -133,10 +162,28 @@ def node_dictionary(node_df):
     return long_lat_pairs, multiple_index_pairs
 
 
-#Sets an IsIntersection value in the dataframe for all intersections.
-#Furthermore, a thrid value is set. This value is set for nodes that where processed more than once; and have an equivelent node flagged as an intersection in the dataframe.
-#this happens so that we know which nodes we don't have to process more than once. 
+"""
+Sets an IsIntersection value in the dataframe for all intersections. Furthermore, a third value is set. This value 
+is set for nodes that where processed more than once; and have an equivalent node flagged as an intersection in the
+dataframe. this happens so that we know which nodes we don't have to process more than once. 
+"""
 def intersection_node_check(node_df, node_dict, index_pairs):
+    """
+    Nodes from road line data.
+    This function converts the node_data into a dictionary where the longitude/latitude pairs are the keys. This
+    function also logs all nodes it processes more that once in the multiple index pairs list. Because a node was
+    processed more than once, it must include more than one row, ergo, multiple_index_pairs flags all the nodes that
+    are intersections.
+    # TODO: The following
+    Keyword arguments:
+        node_df: Pandas DataFrame containing the start, intermediate, and end coordinates
+    contained within the road line data for each road.
+        node_dict
+        index_pairs
+    Returns:
+        node_data:
+    """
+
     node_df[2] = True
     node_df[3] = False
 
@@ -160,19 +207,22 @@ def intersection_node_check(node_df, node_dict, index_pairs):
         if len(row[1]) != 2:
             node_df.iat[index, 3] = True
 
-    for index, row in node_df.iterrows(): #This loop combines the connections for all intersections, so all nodes in an intersection share the same connections. 
+    # This loop combines the connections for all intersections, so all nodes in an intersection share the same
+    # connections.
+    for index, row in node_df.iterrows():
         if row[2]:
             if row[3]:
                 continue
             else:
-                if len(node_df.iat[index, 1]) >= 2: 
+                if len(node_df.iat[index, 1]) >= 2:
                     connection1 = node_df.iat[index, 1][0]
                     connection2 = node_df.iat[index, 1][1]
                     index1 = node_dict[connection1][0]
                     index2 = node_dict[connection2][0]
                     node_df.at[index1, 1].remove(node_df.iat[index, 0])
                     node_df.at[index2, 1].remove(node_df.iat[index, 0])
-                    node_df.at[index1, 1] = list(set(node_df.iat[index1, 1] + [node_df.iat[index2, 0]])) #Converting between a list and a set ensures that only unique values with be retained. 
+                    # Converting between a list and a set ensures that only unique values with be retained.
+                    node_df.at[index1, 1] = list(set(node_df.iat[index1, 1] + [node_df.iat[index2, 0]]))
                     node_df.at[index2, 1] = list(set([node_df.iat[index1, 0]] + node_df.iat[index2, 1]))
 
     index_list = []
@@ -188,11 +238,12 @@ def intersection_node_check(node_df, node_dict, index_pairs):
 
     return node_df
 
-#Creates a dictionary of intersection nodes, for the sake of easy look up. 
+
+# Creates a dictionary of intersection nodes, for the sake of easy look up.
 def intersection_node_dictionary(node_df):
     intersection_node_dict = {}
     node_df = node_df.rename(
-            columns={0: "Long/Lat Coordinates", 1: "Connections", 3 : "Is Intersection", })
+        columns={0: "Long/Lat Coordinates", 1: "Connections", 3: "Is Intersection", })
 
     for index, row in node_df.iterrows():
         if row["Is Intersection"]:
@@ -213,24 +264,26 @@ def intersection_node_dictionary(node_df):
 def get_houses(number_of_houses):
     house_ids = []
 
-    random.seed(42) #Seed can be changed to get different random numbers. 
+    # Seed can be changed to get different random numbers.
+    random.seed(42)
 
-    for i in range(number_of_houses):
+    for _ in range(number_of_houses):
         house_ids.append(random.randint(0, len(BUILDING_FILE_WITH_ELEVATION)))
 
     return house_ids
 
 
-# Get nearest intersection for houses, to use as a benchmark for algorithms below. 
+# Get nearest intersection for houses, to use as a benchmark for algorithms below.
 def nearest_intersection_to_house(houses, node_data, intersection_dict):
     nearest_intersections = []
     node_data = node_data.rename(
-            columns={0: "Long/Lat Coordinates", 1: "Connections", 3: "Is Intersection", })
+        columns={0: "Long/Lat Coordinates", 1: "Connections", 3: "Is Intersection", })
 
     for house_id in houses:
         coordinates = list(BUILDING_FILE_WITH_ELEVATION.loc[house_id, "geometry"].coords)
-        long = coordinates[0][0]  #Get lat/long coordinates for the house. 
-        lat = coordinates[0][1]  
+        # Get lat/long coordinates for the house.
+        long = coordinates[0][0]
+        lat = coordinates[0][1]
 
         elevation = BUILDING_FILE_WITH_ELEVATION.at[house_id, "SAMPLE_1"]
         near_intersection = None
@@ -246,7 +299,7 @@ def nearest_intersection_to_house(houses, node_data, intersection_dict):
                     node_long = row["Long/Lat Coordinates"][0]
                     node_lat = row["Long/Lat Coordinates"][1]
 
-                huer = heuristic(long, lat, node_long, node_lat)
+                huer = heuristic(long, lat, node_long, node_lat, False)
                 if near_intersection_dist > huer:
                     near_intersection_dist = huer
                     near_intersection = intersection_dict[(node_long, node_lat)]
@@ -255,26 +308,27 @@ def nearest_intersection_to_house(houses, node_data, intersection_dict):
     return nearest_intersections
 
 
-#This function finds the three nearest houses to perfrom an A* search on, so that we can find the quickest path between house A and house B. 
-def find_nearby_houses(nearest_intersections, intersection_dict):
+# This function finds the three nearest houses to perform an A* search on, so that we can find the quickest path
+# between house A and house B.
+def find_nearby_houses(nearest_intersections, intersection_dict, elevation_dict):
     graph = {}
 
     for intersection in nearest_intersections:
         houses_completed = []
         houses_visited = []
 
-        for i in range(3):
+        for _ in range(3):
             smallest_dist = math.inf
             closest_house = None
 
             for house_to_go in nearest_intersections:
                 if house_to_go not in houses_completed and house_to_go != intersection:
                     dist = heuristic(house_to_go.long_lat[0], house_to_go.long_lat[1], intersection.long_lat[0],
-                                     intersection.long_lat[1])
+                                     intersection.long_lat[1], True, elevation_dict)
                     if dist < smallest_dist:
                         smallest_dist = dist
                         closest_house = house_to_go
-            cost = node_to_node_search(closest_house, intersection, intersection_dict)
+            cost = node_to_node_search(closest_house, intersection, intersection_dict, elevation_dict)
             houses_completed.append(closest_house)
             houses_visited.append((closest_house, cost))
             graph[intersection] = houses_visited
@@ -284,7 +338,7 @@ def find_nearby_houses(nearest_intersections, intersection_dict):
 
 # General classes
 
-#Node class to use for traveling salesman problem. 
+# Node class to use for traveling salesman problem.
 class Node:
 
     def __init__(self, road_condition, elevation, long_lat, connections, node_id):
@@ -297,17 +351,21 @@ class Node:
         self.h = None
         self.id = node_id
 
-    def convert_connections_for_graph(self): #Convert function works to change connections from a list to a dictionary, depending on the algorithm. (A* uses list, branch and bound
-        #uses a dictionary.)
+    # Convert function works to change connections from a list to a dictionary, depending on the algorithm. (A* uses
+    # list, branch and bound uses a dictionary.)
+    def convert_connections_for_graph(self):
         self.connections = {}
 
 
-#Graph class. 
+# Graph class.
 class Graph:
-    def __init__(self, nodes_for_graph): #One attribute, a list of all the nodes contained in the graph. 
+    # One attribute, a list of all the nodes contained in the graph.
+    def __init__(self, nodes_for_graph):
         self.nodes = nodes_for_graph
 
-    def convert_to_matrix(self): #Function to convert the graph into an adjancy matrix. Where there are no connections, the value of the matrix is set to infinity. 
+    # Function to convert the graph into an adjacency matrix. Where there are no connections, the value of the matrix
+    # is set to infinity.
+    def convert_to_matrix(self):
         matrix = np.zeros((len(self.nodes), len(self.nodes)))
         matrix = np.where(matrix == 0, math.inf, matrix)
         for node in self.nodes:
@@ -315,30 +373,37 @@ class Graph:
                 matrix[node.id][connections.id] = node.connections[connections]
         return matrix
 
-    def size(self): #Returns size of graph. 
+    # Returns size of graph.
+    def size(self):
         return len(self.nodes)
 
-
-class PriorityQueue: #Priority queue class. 
+# Priority queue class.
+class PriorityQueue:
+    # Priority queue is stored in a dictionary, in the format {node: [priority, matrix]}
     def __init__(self):
-        self.queue = {} #Priority queue is stored in a dictionary, in the format {node: [priority, matrix]}
+        self.queue = {}
 
-    def isEmpty(self): #Returns if priority queue is empty. 
+    # Returns if priority queue is empty.
+    def isEmpty(self):
         return len(self.queue) == 0
 
-    def push_with_matrix(self, node, priority, matrix): #Push an item to the priority queue with a matrix
+    # Push an item to the priority queue with a matrix
+    def push_with_matrix(self, node, priority, matrix):
         self.queue[node] = [priority, matrix]
 
-    def push_wo_matrix(self, node, priority): #Push without a matrix
+    # Push without a matrix
+    def push_wo_matrix(self, node, priority):
         self.queue[node] = priority
 
-    def inQueue(self, node): #Check to see if a node is already in the Queue. 
+    # Check to see if a node is already in the Queue.
+    def inQueue(self, node):
         for node in self.queue:
             if node.id == node.id:
                 return True
         return False
 
-    def pop_with_matrix(self): #Pop a node and get the matrix.
+    # Pop a node and get the matrix.
+    def pop_with_matrix(self):
         node = min(self.queue, key=attrgetter('cost'))
         cost = self.queue[node][0]
         matrix = self.queue[node][1]
@@ -346,23 +411,28 @@ class PriorityQueue: #Priority queue class.
         del self.queue[node]
         return node, cost, matrix
 
-    def peek(self): #Peek and see the next node, without deleting the node from the priority queue. 
+    # Peek and see the next node, without deleting the node from the priority queue.
+    def peek(self):
         node = min(self.queue, key=attrgetter('cost'))
         cost = self.queue[node]
         return node, cost
 
-    def pop_wo_matrix(self): #pop without returning the matrix. 
+    # Pop without returning the matrix.
+    def pop_wo_matrix(self):
         node = min(self.queue, key=attrgetter('cost'))
         cost = self.queue[node]
         del self.queue[node]
         return node, cost
 
-#Solid state node class, these are primarly used to keep track of what we have tried using the branch and bound method.
-    
+
+# Solid state node class, these are primarily used to keep track of what we have tried using the branch and bound
+# method.
+
 class SolidStateNode:
 
     def __init__(self, parent_node, node_id, node, level, reduced_matrix, cost):
-        self.node = node #Each SolidState node has a graph node, id, matrix, parent node, level and cost associated with them. 
+        # Each SolidState node has a graph node, id, matrix, parent node, level and cost associated with them.
+        self.node = node
         self.node_id = node_id
         self.reduced_matrix = reduced_matrix
         self.parent_node = parent_node
@@ -376,7 +446,8 @@ class SolidStateNode:
         else:
             self.closedList = []
 
-    def add_children(self, child): #Method to add a child. 
+    # Method to add a child.
+    def add_children(self, child):
         self.children.append(child)
 
 
@@ -452,7 +523,7 @@ def explore_edge(start_node, node_from, node_to, matrix):
 
 
 def search_solid_state_tree(root):
-    #Method to search and print everything from Solid State tree. 
+    # Method to search and print everything from Solid State tree.
     if root.parent_node is not None:
         print("Parent: ", root.parent_node.node_id, "ID: ", root.node_id, "House: ", root.node.id)
 
@@ -463,13 +534,19 @@ def search_solid_state_tree(root):
         search_solid_state_tree(child)
 
 
-def heuristic(long1, lat1, long2, lat2):
+def heuristic(long1, lat1, long2, lat2, include_elevation, elevation_dict=None):
+
+    if include_elevation:
+        elevation1 = elevation_dict[long1, lat1]/5500
+        elevation2 = elevation_dict[long2, lat2]/5500
+        return math.sqrt((lat2 - lat1) ** 2 + (long2 - long1) ** 2 + (elevation2 - elevation1)**2)
+
     return math.sqrt((lat2 - lat1) ** 2 + (long2 - long1) ** 2)
 
 
 # Algorithms
-def node_to_node_search(start_node, goal, intersection_dict):
-    #This is the A* search algorithm, it using the euclidean distance from the goal as a heuristic to try given nodes. 
+def node_to_node_search(start_node, goal, intersection_dict, elevation_dict):
+    # This is the A* search algorithm, it using the euclidean distance from the goal as a heuristic to try given nodes.
     open_list = [start_node]
     closed_list = []
     final_route = []
@@ -485,7 +562,7 @@ def node_to_node_search(start_node, goal, intersection_dict):
         if current_node != start_node:
             current_node = min(open_list, key=attrgetter('f'))
 
-        #Level represents the node. 
+        # Level represents the node.
         level = tree_dict[current_node]
         open_list.remove(current_node)
 
@@ -504,7 +581,6 @@ def node_to_node_search(start_node, goal, intersection_dict):
         # For the current_node, go through all of its connections, and determine their f(x) as a sum of their h(x)
         # and g(x).
         for sub_node in current_node.connections:
-            long_lat = sub_node
             if sub_node in intersection_dict.keys():
                 sub_node = intersection_dict[sub_node]
             else:
@@ -519,23 +595,23 @@ def node_to_node_search(start_node, goal, intersection_dict):
                 tree_dict[sub_node] = level + 1
 
             sub_node.g = heuristic(current_node.long_lat[0], current_node.long_lat[1], sub_node.long_lat[0],
-                                   sub_node.long_lat[1]) + current_node.g
+                                   sub_node.long_lat[1], True, elevation_dict) + current_node.g
             sub_node.h = heuristic(sub_node.long_lat[0], sub_node.long_lat[1], goal.long_lat[0],
-                                   goal.long_lat[1]) * 4146.282847732093
+                                   goal.long_lat[1], True, elevation_dict)
             sub_node.f = sub_node.g + sub_node.h
 
             open_list.append(sub_node)
 
 
-#Branch and bound algorithm. 
+# Branch and bound algorithm.
 def space_state_algorithm(start_node, original_matrix, graph):
     original_matrix_copy = copy.deepcopy(original_matrix)
 
-    # Reduce the original matrix, this will give us an estimate of the cost of the root, and then then by reducing the roots matrix we will get a cost estimate for
-    #other nodes. 
+    # Reduce the original matrix, this will give us an estimate of the cost of the root, and then then by reducing
+    # the roots matrix we will get a cost estimate for other nodes.
     initial_cost, cost_matrix = calculate_cost(original_matrix_copy)
 
-    #Create variables
+    # Create variables
     priority_queue = PriorityQueue()
     parent_node = graph.nodes[start_node]
     closed_list = []
@@ -556,7 +632,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
     first_branch_cost = math.inf
     return_val = []
 
-    while not priority_queue.isEmpty(): #Priority queue takes the root, and then it takes all other nodes that have been discovered from the root. 
+    # Priority queue takes the root, and then it takes all other nodes that have been discovered from the root.
+    while not priority_queue.isEmpty():
 
         parent_state, cost = priority_queue.pop_wo_matrix()
 
@@ -565,7 +642,8 @@ def space_state_algorithm(start_node, original_matrix, graph):
 
         parent = parent_state.node
         parent_matrix = parent_state.reduced_matrix
-        if parent_state.level >= graph.size() - 1 + num_of_backtracks: #Check to see if a branch has been completed, if so, establish it as the "first branch."
+        # Check to see if a branch has been completed, if so, establish it as the "first branch."
+        if parent_state.level >= graph.size() - 1 + num_of_backtracks:
             if len(first_branch) == 0:
                 first_branch_cost = parent_state.cost
                 next_state = parent_state
@@ -573,29 +651,34 @@ def space_state_algorithm(start_node, original_matrix, graph):
                     first_branch.append(next_state.node.id)
                     next_state = next_state.parent_node
                 first_branch.reverse()
-                lowest_branch = first_branch #lowest branch is currently the first_branch.
+                # lowest branch is currently the first_branch.
+                lowest_branch = first_branch
                 lowest_branch_cost = first_branch_cost
 
             root_connection = False
-            for connection in parent.connections: #Check to see if there is a root connection. If so, we will link it into a circle. 
+            # Check to see if there is a root connection. If so, we will link it into a circle.
+            for connection in parent.connections:
                 if connection.id == root.node.id:
                     root_connection = True
 
             if not root_connection:
                 continue
 
-            parent_matrix_copy = copy.deepcopy(parent_matrix) #Deepcopy parent matrix so we don't have to worry about pointers. 
+            # Deepcopy parent matrix so we don't have to worry about pointers.
+            parent_matrix_copy = copy.deepcopy(parent_matrix)
 
             parent_copy_explored = explore_edge(parent.id, parent.id, root.node.id, parent_matrix_copy)
-            cost_for_step, parent_copy_reduced = calculate_cost(parent_copy_explored) #Further reduce matrix to estimate cost. 
+            # Further reduce matrix to estimate cost.
+            cost_for_step, parent_copy_reduced = calculate_cost(parent_copy_explored)
 
             branch_cost = cost_for_step
             branch_cost += cost
             branch_cost += cost_matrix[parent.id, root.node.id]
 
             if not priority_queue.isEmpty():
-                next_node, next_node_cost = priority_queue.peek()#Peek at next node, see if the next nodes cost is less than the lowest branch's cost. IF so, we return the branch.
-                #Otherwise, we continue searching for "better" branches. 
+                # Peek at next node, see if the next nodes cost is less than the lowest branch's cost. IF so,
+                # we return the branch. Otherwise, we continue searching for "better" branches.
+                next_node, next_node_cost = priority_queue.peek()
 
                 if branch_cost <= next_node_cost:
                     if branch_cost < first_branch_cost * 2:
@@ -609,57 +692,62 @@ def space_state_algorithm(start_node, original_matrix, graph):
                     else:
                         return_val = first_branch
                         break
-            if priority_queue.isEmpty(): #If priority queue is empty, return the lowest branch. 
-                    if first_branch_cost * 2 < lowest_branch_cost:
-                        return_val = first_branch
-                    else:
-                        return_val = lowest_branch_cost
+            # If priority queue is empty, return the lowest branch.
+            if priority_queue.isEmpty():
+                if first_branch_cost * 2 < lowest_branch_cost:
+                    return_val = first_branch
+                else:
+                    return_val = lowest_branch_cost
 
-            if lowest_branch_cost > branch_cost: #If lowest branch is lower than current branch, make current branch the lowest branch and return. 
-                    lowest_branch_cost = branch_cost
-                    lowest_branch = []
-                    lowest_state_node = parent_state
-                    lowest_node = parent
-                    while lowest_state_node is not None:
-                        lowest_branch.append(lowest_state_node.node.id)
-                        lowest_state_node = lowest_state_node.parent_node
+            # If lowest branch is lower than current branch, make current branch the lowest branch and return.
+            if lowest_branch_cost > branch_cost:
+                lowest_branch_cost = branch_cost
+                lowest_branch = []
+                lowest_state_node = parent_state
+                lowest_node = parent
+                while lowest_state_node is not None:
+                    lowest_branch.append(lowest_state_node.node.id)
+                    lowest_state_node = lowest_state_node.parent_node
 
-                    lowest_branch.reverse()
-                    lowest_branch.append(0)
-                    continue
+                lowest_branch.reverse()
+                lowest_branch.append(0)
+                continue
 
-        if cost > lowest_branch_cost: #If current cost is greater than lowest branch, return the lowest branch. 
-                return_val = lowest_branch
-                break
+        # If current cost is greater than lowest branch, return the lowest branch.
+        if cost > lowest_branch_cost:
+            return_val = lowest_branch
+            break
         for sub_node in parent.connections:
-                if sub_node not in parent_state.closedList or len(parent.connections) == 1:
-                    # Set initial cost to that of the parent cost.
-                    total_cost = cost
-                    parent_matrix_copy = copy.deepcopy(parent_matrix)
+            if sub_node not in parent_state.closedList or len(parent.connections) == 1:
+                # Set initial cost to that of the parent cost.
+                total_cost = cost
+                parent_matrix_copy = copy.deepcopy(parent_matrix)
 
-                    # Add the cost of the edge to the total_cost. The edge cost must be retrieved from the starting node
-                    # reduced cost matrix (cost_matrix).
-                    edge_cost = cost_matrix[parent.id, sub_node.id]
-                    total_cost += edge_cost
+                # Add the cost of the edge to the total_cost. The edge cost must be retrieved from the starting node
+                # reduced cost matrix (cost_matrix).
+                edge_cost = cost_matrix[parent.id, sub_node.id]
+                total_cost += edge_cost
 
-                    # Add the cost of the lower bound starting at the sub_node. This means that we need to add the
-                    # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
-                    # cost. NOTE: This must be done on the current parent reduced matrix.
-                    parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
-                    cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
-                    total_cost += cost_for_step
+                # Add the cost of the lower bound starting at the sub_node. This means that we need to add the
+                # math.inf values, then perform a row and column reduction, and add the resulting cost to our total
+                # cost. NOTE: This must be done on the current parent reduced matrix.
+                parent_matrix_copy_explored = explore_edge(start_node, parent.id, sub_node.id, parent_matrix_copy)
+                cost_for_step, parent_matrix_copy_explored_reduced = calculate_cost(parent_matrix_copy_explored)
+                total_cost += cost_for_step
 
-                    sub_node.cost = total_cost
+                sub_node.cost = total_cost
 
-                    state_node = SolidStateNode(parent_state, i, sub_node, parent_state.level + 1,
-                                                parent_matrix_copy_explored, total_cost)
-                    i += 1
+                state_node = SolidStateNode(parent_state, i, sub_node, parent_state.level + 1,
+                                            parent_matrix_copy_explored, total_cost)
+                i += 1
 
-                    priority_queue.push_wo_matrix(state_node, cost)
+                priority_queue.push_wo_matrix(state_node, cost)
         closed_list.append(parent)
     closed_list = lowest_branch
 
-    if len(return_val) > 0: #Once we have a value to return, we append it to a final list and create a list in the correct style for visualization. 
+    # Once we have a value to return, we append it to a final list and create a list in the correct style for
+    # visualization.
+    if len(return_val) > 0:
         parent_index = 0
 
         for item in return_val:
@@ -700,15 +788,14 @@ def prims_algorithm(start_node, original_matrix, graph):
 
     priority_queue.push_with_matrix(parent_node, initial_cost, cost_matrix)
 
-    # A Python program for Prim's Minimum Spanning Tree (MST) algorithm.
+    # A Python program for Prims' Minimum Spanning Tree (MST) algorithm.
     # The program is for adjacency matrix representation of the graph
 
     class PrimsGraph:
 
         def __init__(self, vertices):
             self.V = vertices
-            self.graph = [[0 for _ in range(vertices)]
-                          for _ in range(vertices)]
+            self.graph = [[0 for _ in range(vertices)] for _ in range(vertices)]
 
         # A utility function to print the constructed MST stored in parent[]
         def printMST(self, parent):
@@ -736,17 +823,16 @@ def prims_algorithm(start_node, original_matrix, graph):
             # Key values used to pick minimum weight edge in cut
             key = [float("inf")] * self.V
 
-            parent = [None] * self.V  # Array to store constructed MST
+            # Array to store constructed MST
+            parent = [None] * self.V
             # Make key 0 so that this vertex is picked as first vertex
             key[0] = start_node
             mstSet = [False] * self.V
 
-            parent[0] = -1  # First node is always the root of
+            # First node is always the root of
+            parent[0] = -1
 
             for _ in range(self.V):
-                """print("\nParent: ", parent)
-                print("Keys: ", key)
-                print("mstSet: ", mstSet)"""
                 # Pick the minimum distance vertex from the set of vertices not yet processed.
                 # u is always equal to src in first iteration
                 u = self.minKey(key, mstSet)
@@ -756,7 +842,7 @@ def prims_algorithm(start_node, original_matrix, graph):
                 mstSet[u] = True
 
                 # Update dist value of the adjacent vertices of the picked vertex only if the current
-                # distance is greater than new distance and the vertex in not in the shotest path tree
+                # distance is greater than new distance and the vertex in not in the shortest path tree
                 for v in range(self.V):
 
                     # graph[u][v] is non zero only for adjacent vertices of m
@@ -792,7 +878,7 @@ def visualization(graph_data=None, path=None):
             node_list.append(node.id)
             for connections in node.connections:
                 edge_list.append([node.id, connections.id])
-                edge_labels_dict[(node.id, connections.id)] = node.connections[connections]
+                edge_labels_dict[(node.id, connections.id)] = round(node.connections[connections]*10, 2)
 
         G.add_nodes_from(node_list)
         G.add_edges_from(edge_list)
@@ -814,7 +900,7 @@ def visualization(graph_data=None, path=None):
         for row in path:
             parent_node = row[0]
             sub_node = row[1]
-            edge_weight = row[2]
+            edge_weight = round(row[2]*10, 2)
 
             node_list.append(parent_node)
             edge_list.append([parent_node, sub_node])
@@ -841,22 +927,27 @@ def main():
     VISUALIZATION = True
     ALGORITHM = 0
 
-    if LOAD_DATA: #Fetch csv files, load all dataframes from csv files. 
+    # Fetch csv files, load all dataframes from csv files.
+    if LOAD_DATA:
         road_line_nodes = pd.read_csv("0_processed_road_lines", sep=',')
         node_data_wo_intersections = pd.read_csv("1_processed_road_line_nodes", sep=',')
         node_coord_pairs, multi_index_pairs = node_dictionary(node_data_wo_intersections)
         node_data = pd.read_csv("2_processed_road_line_nodes_w_intersections", sep=',')
 
-        with open("graph_1.pkl", "rb") as tf: #Load graphs from pickle, so that we don't have to reorganize it. 
+        # Load graphs from pickle, so that we don't have to reorganize it.
+        with open("graph_1.pkl", "rb") as tf:
             graph = pickle.load(tf)
 
         with open("nodes_for_graph_1.pkl", "rb") as tf:
             nodes_for_graph = pickle.load(tf)
 
+        with open("elevation_1.pkl", "rb") as tf:
+            nodes_for_graph = pickle.load(tf)
+
         nodes_list = graph.keys()
 
     else:
-        #Otherwise we get the road lines and nodes from the given sahpe files, load them, and store them as csvs.
+        # Otherwise we get the road lines and nodes from the given .shp files, load them, and store them as csv files.
         road_line_nodes = road_line_processing(ROAD_LINE_DATA)
         road_line_nodes.to_csv("0_processed_road_lines", encoding='utf-8', index=False)
 
@@ -868,13 +959,16 @@ def main():
         node_data = intersection_node_check(node_data, node_coord_pairs, multi_index_pairs)
         node_data.to_csv("2_processed_road_line_nodes_w_intersection", encoding='utf-8', index=False)
 
-        #re-index node data dataframe. 
+
+        elevation_dict = road_elevation_processing(ROAD_POINT_WITH_ELEVATION_DATA)
+
+        # re-index node data dataframe.
 
         node_data.reset_index().drop("index", axis=1)
         node_data = node_data.reset_index()
         node_data = node_data.drop("index", axis=1)
-        
-        #Drop collumn two, which kept track fo duplicates from dataframe. 
+
+        # Drop column two, which kept track fo duplicates from dataframe.
 
         if LOAD_DATA:
             node_data = node_data.drop('2', axis=1)
@@ -886,18 +980,19 @@ def main():
 
         intersection_dict = intersection_node_dictionary(node_data)
 
-        #Get houses and intersections.
-        
+        # Get houses and intersections.
+
         house_ids = get_houses(10)
         nearest_intersections = nearest_intersection_to_house(house_ids, node_data, intersection_dict)
-        graph = find_nearby_houses(nearest_intersections, intersection_dict)
+        graph = find_nearby_houses(nearest_intersections, intersection_dict, elevation_dict)
+        print(graph)
 
         nodes_list = graph.keys()
 
         nodes_for_graph = []
         id_num = 0
 
-        #Append nodes to grpah. 
+        # Append nodes to graph.
 
         for node in nodes_list:
             new_node = Node(None, None, node.long_lat, None, id_num)
@@ -905,14 +1000,18 @@ def main():
             nodes_for_graph.append(new_node)
             id_num += 1
 
-        #Dump them into a pickle file to save for later. 
+        # Dump them into a pickle file to save for later.
         with open("nodes_for_graph_1.pkl", "wb") as fp:
             pickle.dump(nodes_for_graph, fp)
 
         with open("graph_1.pkl", "wb") as fp:
             pickle.dump(graph, fp)
 
-    #Make sure that nodes are connected to other nearby houses. 
+        with open("elevation_1.pkl", "wb") as fp:
+            pickle.dump(elevation_dict, fp)
+
+    random.seed(42)
+    # Make sure that nodes are connected to other nearby houses.
     for graph_node in nodes_for_graph:
         graph_node.convert_connections_for_graph()
         for node in nodes_list:
@@ -920,18 +1019,15 @@ def main():
                 for connection in graph[node]:
                     for other_graph_node in nodes_for_graph:
                         if connection[0].long_lat == other_graph_node.long_lat:
-                            graph_node.connections[other_graph_node] = connection[1]
+                            graph_node.connections[other_graph_node] = connection[1]*rand_int(0, 5)*0.001 #Multiply connection by randomized priority score.
 
-
-    #Force graph to be bidirectional. 
+    # Force graph to be bidirectional.
 
     for graph_node in nodes_for_graph:
         for connection in graph_node.connections:
             for other_graph_node in nodes_for_graph:
                 if other_graph_node in graph_node.connections.keys() and graph_node not in other_graph_node.connections.keys():
                     other_graph_node.connections[graph_node] = graph_node.connections[other_graph_node]
-
-    
 
     graphical_data = Graph(nodes_for_graph)
 
